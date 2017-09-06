@@ -38,7 +38,7 @@ import Data.Maybe
 
     '='     { OpEq }
     fn      { KWFn }
-    require { KWRequire }
+    use     { KWUse }
     ns      { KWNS }
     let     { KWLet }
     if      { KWIf }
@@ -114,7 +114,7 @@ Defs
     : Def Defs  { $1 : $2 }
     | Def       { [$1] }
 
-Def : require Reqdefs ';'   { DefReq $2 }
+Def : use Reqdefs ';'       { DefReq $2 }
     | NamedFundef           { uncurry Def $1 }
 
 Reqdefs 

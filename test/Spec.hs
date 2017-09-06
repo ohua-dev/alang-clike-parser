@@ -1,11 +1,17 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedLists    #-}
+{-# LANGUAGE OverloadedStrings  #-}
+{-# LANGUAGE StandaloneDeriving #-}
 
-import Test.Hspec
-import Ohua.Compat.Clike.Lexer
-import Ohua.Compat.Clike.Parser
-import Ohua.ALang.Lang
-import Ohua.Types
+import           Data.ByteString.Lazy     as B
+import           Ohua.ALang.Lang
+import           Ohua.ALang.NS
+import           Ohua.Compat.Clike.Lexer
+import           Ohua.Compat.Clike.Parser
+import           Ohua.Types
+import           Test.Hspec
 
+deriving instance Show a => Show (Namespace a)
+deriving instance Eq a => Eq (Namespace a)
 
 lp = parseExp . tokenize
 
@@ -27,5 +33,19 @@ main = hspec $ do
         it "parses a named fundef" $
             lp "{ fn a_fn (a) { a } b }" `shouldBe` (Let "a_fn" (Lambda "a" "a") "b")
         -- it "parses an if" $
-        --     lp "if (add (x, y)) { fn a () { return b; } return a; } else { return c; }" 
-        --         `shouldBe` 
+        --     lp "if (add (x, y)) { fn a () { return b; } return a; } else { return c; }"
+        --         `shouldBe`
+        it "parses the example module" $ (parseNS . tokenize <$> B.readFile "test-resources/something.ohuac")
+            `shouldReturn`
+            Namespace "some_ns"
+                [ ("ohua.math",["add","isZero"]) ]
+                [ ("sqare", Lambda "x" ("add" `Apply` "x" `Apply` "x"))
+                , ("algo1", Lambda "someParam" $
+                        Let "a" ("square" `Apply` "someParam") $
+                        Let "coll0" ("ohua.lang/smap" `Apply` Lambda "i" ("square" `Apply` "i") `Apply` "coll") $
+                        ("ohua.lang/if"
+                            `Apply` ("isZero" `Apply` "a")
+                            `Apply` Lambda "_" "coll0"
+                            `Apply` Lambda "_" "a"))
+                , ("main", Lambda "param"  ("algo0" `Apply` "param"))
+                ] (Just (Lambda "param"  ("algo0" `Apply` "param")))

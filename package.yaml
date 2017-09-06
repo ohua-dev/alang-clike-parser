@@ -36,3 +36,4 @@ tests:
     - alang-clike-parser
     - hspec
     - ohua-core
+    - bytestring
