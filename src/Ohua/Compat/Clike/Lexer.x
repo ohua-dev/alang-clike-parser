@@ -48,7 +48,7 @@ $sep = $white
     "else"      { const KWElse }
     "for"       { const KWFor }
     "in"        { const KWIn }
-    "require"   { const KWRequire }
+    "use"       { const KWUse }
     "ns"        { const KWNS }
     "let"       { const KWLet }
     @id         { Id . Binding . L.decodeUtf8 . BS.toStrict }
@@ -75,9 +75,8 @@ data Lexeme
     | KWFor -- ^ keyword @for@
     | KWIn -- ^ keyword @in@
     | KWFn  -- ^ keyword @fn@
-    | KWRequire -- ^ keyword @require@
+    | KWUse -- ^ keyword @use@
     | KWNS -- ^ keyword @ns@ (namespace)
-    | KWReturn -- ^ keyword @return@
     | Id Binding -- ^ an identifier
     deriving Show
 

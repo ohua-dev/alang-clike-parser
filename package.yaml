@@ -1,11 +1,11 @@
 name: alang-clike-parser
 version: '0.1.0.0'
 category: Devel
-author: Justus Adam
+author: Sebastian Ertel, Justus Adam
 maintainer: dev@justus.science
-copyright: © 2017 Justus Adam
+copyright: © 2017 Sebastian Ertel, Justus Adam
 license: OtherLicense
-github: JustusAdam/alang-sexpr-parser
+github: ohua-dev/alang-clike-parser
 extra-source-files:
 - README.md
 library:
@@ -23,19 +23,8 @@ library:
   build-tools:
   - alex
   - happy
-# executables:
-#   alang-sexpr-parser-exe:
-#     main: Main.hs
-#     source-dirs: app
-#     ghc-options:
-#     - -threaded
-#     - -rtsopts
-#     - -with-rtsopts=-N
-#     dependencies:
-#     - base
-#     - alang-sexpr-parser
 tests:
-  alang-sexpr-parser-test:
+  alang-clike-parser-test:
     main: Spec.hs
     source-dirs: test
     ghc-options:
