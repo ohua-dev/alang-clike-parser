@@ -39,6 +39,8 @@ import Data.Maybe
     '='     { OpEq }
     fn      { KWFn }
     use     { KWUse }
+    algo    { KWAlgo }
+    sf      { KWSf }
     ns      { KWNS }
     let     { KWLet }
     if      { KWIf }
@@ -114,8 +116,9 @@ Defs
     : Def Defs  { $1 : $2 }
     | Def       { [$1] }
 
-Def : use Reqdefs ';'       { DefReq $2 }
-    | NamedFundef           { uncurry Def $1 }
+Def : use sf Reqdefs ';'    { Left (Left $3) }
+    | use algo Reqdefs ';'  { Left (Right $3) }
+    | NamedFundef           { Right $1 }
 
 Reqdefs 
     : ReqDef ',' Reqdefs    { $1 : $3 }
@@ -145,13 +148,11 @@ parseError tokens = error $ "Parse error" ++ show tokens
 parseNS :: [Lexeme] -> Namespace Binding
 parseNS = parseNSRaw
 
-data Def = Def Binding (Expr Binding) | DefReq [(Binding, [Binding])]
-
-mkNS :: Binding -> [Def] -> Namespace Binding
-mkNS name defs = Namespace name requires fundefs (HM.lookup "main" fundefs)
+mkNS :: Binding -> [Either (Either [(Binding, [Binding])] [(Binding, [Binding])]) (Binding, Expr Binding)] -> Namespace Binding
+mkNS name defs = Namespace name (concat algoRequires) (concat sfRequires) fundefs (HM.lookup "main" fundefs)
   where
-    (requireList, fundefList) = partitionEithers $ map (\case DefReq reqs -> Left reqs; Def name thing -> Right (name, thing)) defs
-    requires = concat requireList
+    (requireList, fundefList) = partitionEithers defs
+    (sfRequires, algoRequires) = partitionEithers requireList
     fundefs = HM.fromList fundefList
 
 }

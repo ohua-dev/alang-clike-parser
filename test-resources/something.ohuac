@@ -1,8 +1,9 @@
 ns some_ns;
 
-use ohua.math (add, isZero);
+use sf ohua.math (add, isZero);
+use algo some.module (a);
 
-fn sqare (x) {
+fn square (x) {
     add(x, x)
 }
 

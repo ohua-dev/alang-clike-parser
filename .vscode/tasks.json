@@ -7,6 +7,13 @@
     "args": [],
     "tasks": [
         {
+            "taskName": "test",
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            }
+        },
+        {
             "taskName": "build",
             "group": {
                 "kind": "build",

@@ -49,6 +49,8 @@ $sep = $white
     "for"       { const KWFor }
     "in"        { const KWIn }
     "use"       { const KWUse }
+    "sf"        { const KWSf }
+    "algo"      { const KWAlgo }
     "ns"        { const KWNS }
     "let"       { const KWLet }
     @id         { Id . Binding . L.decodeUtf8 . BS.toStrict }
@@ -76,6 +78,8 @@ data Lexeme
     | KWIn -- ^ keyword @in@
     | KWFn  -- ^ keyword @fn@
     | KWUse -- ^ keyword @use@
+    | KWAlgo -- ^ keyword @algo@
+    | KWSf -- ^ keyword @sf@
     | KWNS -- ^ keyword @ns@ (namespace)
     | Id Binding -- ^ an identifier
     deriving Show
