@@ -35,8 +35,8 @@ import qualified Ohua.ParseTools.Refs as Refs
 
 %token
 
-    id      { Id $$ }
-    localId { Id [$$] }
+    id      { UnqualId $$ }
+    qualid  { QualId $$ }
 
     '='     { OpEq }
     fn      { KWFn }
@@ -60,6 +60,14 @@ import qualified Ohua.ParseTools.Refs as Refs
 
 %%
 
+QualId 
+    : id { [$1] }
+    | qualid { $1 }
+
+SomeId 
+    : id     { Unqual $1 }
+    | qualid { Qual (toQualBnd $1) }
+
 Stmts
     : NoSemStmt Stmts   { $1 $2 }
     | StmtSem ';' Stmts { $1 $3 }
@@ -74,20 +82,20 @@ StmtSem
 
 Exp 
     : fn Fundef                         { $2 }
-    | id '(' Apply ')'                  { $3 (Var (toSomeBinding $1)) }
-    | id                                { Var (toSomeBinding $1) }
+    | SomeId '(' Apply ')'                  { $3 (Var $1) }
+    | SomeId                                { Var $1 }
     | for Destruct in Exp '{' Stmts '}'  { Refs.smapBuiltin `Apply` Lambda $2 $6 `Apply` $4 }
     | if '(' Exp ')' '{' Stmts '}' else '{' Stmts '}' 
         { Refs.ifBuiltin `Apply` $3 `Apply` Lambda "_" $6 `Apply` Lambda "_" $10 }
     | '{' Stmts '}'                     { $2 }
 
 Destruct 
-    : localId       { Direct $1 }
+    : id       { Direct $1 }
     | '[' Vars ']'  { Destructure $2 }
 
 Vars 
-    : localId ',' Vars   { $1 : $3 }
-    | localId            { [$1] }
+    : id ',' Vars   { $1 : $3 }
+    | id            { [$1] }
 
 Apply
     : ApplyParams   { $1 }
@@ -109,10 +117,10 @@ HasParams
     | Destruct              { Lambda $1 }
 
 NamedFundef
-    : fn localId Fundef { ($2, $3) }
+    : fn id Fundef { ($2, $3) }
 
 NS 
-    : ns id ';' Defs { mkNS (bndsToNSRef $2) $4 }
+    : ns QualId ';' Defs { mkNS (bndsToNSRef $2) $4 }
 
 Defs 
     : Def Defs  { $1 : $2 }
@@ -127,12 +135,12 @@ Reqdefs
     | ReqDef                { [$1] }
 
 ReqDef 
-    : id '(' Refers ')' { (bndsToNSRef $1, $3) }
-    | id                { (bndsToNSRef $1, []) }
+    : QualId '(' Refers ')' { (bndsToNSRef $1, $3) }
+    | QualId                { (bndsToNSRef $1, []) }
 
 Refers 
-    : localId ',' Refers    { $1 : $3 }
-    | localId               { [$1] }
+    : id ',' Refers    { $1 : $3 }
+    | id               { [$1] }
     |                       { [] }
 
 {
@@ -140,10 +148,10 @@ bndsToNSRef :: [Binding] -> NSRef
 bndsToNSRef = nsRefFromList
 
 
-toSomeBinding :: [Binding] -> SomeBinding
-toSomeBinding [] = error "empty id"
-toSomeBinding [x] = Unqual x
-toSomeBinding xs = Qual $ QualifiedBinding (nsRefFromList $ init xs) (last xs)
+toQualBnd :: [Binding] -> QualifiedBinding
+toQualBnd [] = error "empty id"
+toQualBnd [x] = error "qual bnd with only one component"
+toQualBnd xs = QualifiedBinding (nsRefFromList $ init xs) (last xs)
 
 
 -- | Parse a stream of tokens into a simple ALang expression

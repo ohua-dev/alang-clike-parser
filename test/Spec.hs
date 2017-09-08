@@ -37,9 +37,9 @@ main = hspec $ do
         --         `shouldBe`
         it "parses the example module" $ (parseNS . tokenize <$> B.readFile "test-resources/something.ohuac")
             `shouldReturn`
-            Namespace "some_ns"
-                [ ("some.module", ["a"]) ]
-                [ ("ohua.math",["add","isZero"]) ]
+            Namespace (nsRefFromList ["some_ns"])
+                [ (nsRefFromList ["some","module"], ["a"]) ]
+                [ (nsRefFromList ["ohua","math"],["add","isZero"]) ]
                 [ ("square", Lambda "x" ("add" `Apply` "x" `Apply` "x"))
                 , ("algo1", Lambda "someParam" $
                         Let "a" ("square" `Apply` "someParam") $
@@ -49,4 +49,4 @@ main = hspec $ do
                             `Apply` Lambda "_" "coll0"
                             `Apply` Lambda "_" "a"))
                 , ("main", Lambda "param"  ("algo0" `Apply` "param"))
-                ] (Just (Lambda "param"  ("algo0" `Apply` "param")))
+                ]

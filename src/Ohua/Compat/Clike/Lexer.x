@@ -29,8 +29,8 @@ $reserved = [@\#:\-\$]
 $idchar = [$numerical $sym $char]
 $sep = $white
 
-@id = $char $idchar (:: $idchar +)*
-
+@id = $char $idchar*
+@qualid = @id (:: @id)+
 
 :-
 
@@ -53,7 +53,8 @@ $sep = $white
     "algo"      { const KWAlgo }
     "ns"        { const KWNS }
     "let"       { const KWLet }
-    @id         { Id . toId }
+    @qualid     { QualId . toQualId }
+    @id         { UnqualId . convertId }
     $sep        ;
 
     $reserved { \s -> error $ "Reserved symbol: " ++ BS.unpack s }
@@ -81,7 +82,8 @@ data Lexeme
     | KWAlgo -- ^ keyword @algo@
     | KWSf -- ^ keyword @sf@
     | KWNS -- ^ keyword @ns@ (namespace)
-    | Id [Binding] -- ^ an identifier
+    | UnqualId Binding
+    | QualId [Binding] -- ^ an identifier
     deriving Show
 
 
@@ -89,8 +91,8 @@ convertId :: ByteString.ByteString -> Binding
 convertId = Binding . L.decodeUtf8 . BS.toStrict
 
 
-toId :: ByteString.ByteString -> [Binding]
-toId = map Binding . T.splitOn "::" . L.decodeUtf8 . BS.toStrict
+toQualId :: ByteString.ByteString -> [Binding]
+toQualId = map Binding . T.splitOn "::" . L.decodeUtf8 . BS.toStrict
 
 
 -- | Tokenize a lazy bytestring into lexemes
