@@ -23,6 +23,7 @@ import Ohua.ALang.NS
 import qualified Data.HashMap.Strict as HM
 import Data.Either
 import Data.Maybe
+import qualified Ohua.ParseTools.Refs as Refs
 
 }
 
@@ -35,6 +36,7 @@ import Data.Maybe
 %token
 
     id      { Id $$ }
+    localId { Id [$$] }
 
     '='     { OpEq }
     fn      { KWFn }
@@ -72,20 +74,20 @@ StmtSem
 
 Exp 
     : fn Fundef                         { $2 }
-    | id '(' Apply ')'                  { $3 (Var $1) }
-    | id                                { Var $1 }
-    | for Destruct in Exp '{' Stmts '}'  { "ohua.lang/smap" `Apply` Lambda $2 $6 `Apply` $4 }
+    | id '(' Apply ')'                  { $3 (Var (toSomeBinding $1)) }
+    | id                                { Var (toSomeBinding $1) }
+    | for Destruct in Exp '{' Stmts '}'  { Refs.smapBuiltin `Apply` Lambda $2 $6 `Apply` $4 }
     | if '(' Exp ')' '{' Stmts '}' else '{' Stmts '}' 
-        { "ohua.lang/if" `Apply` $3 `Apply` Lambda "_" $6 `Apply` Lambda "_" $10 }
+        { Refs.ifBuiltin `Apply` $3 `Apply` Lambda "_" $6 `Apply` Lambda "_" $10 }
     | '{' Stmts '}'                     { $2 }
 
 Destruct 
-    : id            { Direct $1 }
+    : localId       { Direct $1 }
     | '[' Vars ']'  { Destructure $2 }
 
 Vars 
-    : id ',' Vars   { $1 : $3 }
-    | id            { [$1] }
+    : localId ',' Vars   { $1 : $3 }
+    | localId            { [$1] }
 
 Apply
     : ApplyParams   { $1 }
@@ -107,10 +109,10 @@ HasParams
     | Destruct              { Lambda $1 }
 
 NamedFundef
-    : fn id Fundef { ($2, $3) }
+    : fn localId Fundef { ($2, $3) }
 
 NS 
-    : ns id ';' Defs { mkNS $2 $4 }
+    : ns id ';' Defs { mkNS (bndsToNSRef $2) $4 }
 
 Defs 
     : Def Defs  { $1 : $2 }
@@ -125,19 +127,27 @@ Reqdefs
     | ReqDef                { [$1] }
 
 ReqDef 
-    : id '(' Refers ')' { ($1, $3) }
-    | id                { ($1, []) }
+    : id '(' Refers ')' { (bndsToNSRef $1, $3) }
+    | id                { (bndsToNSRef $1, []) }
 
 Refers 
-    : id ',' Refers { $1 : $3 }
-    | id            { [$1] }
-    |               { [] }
+    : localId ',' Refers    { $1 : $3 }
+    | localId               { [$1] }
+    |                       { [] }
 
 {
+bndsToNSRef :: [Binding] -> NSRef
+bndsToNSRef = nsRefFromList
+
+
+toSomeBinding :: [Binding] -> SomeBinding
+toSomeBinding [] = error "empty id"
+toSomeBinding [x] = Unqual x
+toSomeBinding xs = Qual $ QualifiedBinding (nsRefFromList $ init xs) (last xs)
 
 
 -- | Parse a stream of tokens into a simple ALang expression
-parseExp :: [Lexeme] -> Expr Binding
+parseExp :: [Lexeme] -> Expr SomeBinding
 parseExp = parseExpH
 
 parseError :: [Lexeme] -> a
@@ -145,11 +155,11 @@ parseError tokens = error $ "Parse error" ++ show tokens
 
 
 -- | Parse a stream of tokens into a namespace
-parseNS :: [Lexeme] -> Namespace Binding
+parseNS :: [Lexeme] -> Namespace SomeBinding
 parseNS = parseNSRaw
 
-mkNS :: Binding -> [Either (Either [(Binding, [Binding])] [(Binding, [Binding])]) (Binding, Expr Binding)] -> Namespace Binding
-mkNS name defs = Namespace name (concat algoRequires) (concat sfRequires) fundefs (HM.lookup "main" fundefs)
+mkNS :: NSRef -> [Either (Either [(NSRef, [Binding])] [(NSRef, [Binding])]) (Binding, Expr SomeBinding)] -> Namespace SomeBinding
+mkNS name defs = Namespace name (concat algoRequires) (concat sfRequires) fundefs
   where
     (requireList, fundefList) = partitionEithers defs
     (sfRequires, algoRequires) = partitionEithers requireList

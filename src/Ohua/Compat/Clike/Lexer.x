@@ -23,13 +23,13 @@ import Prelude hiding (lex)
 %wrapper "basic-bytestring"
 
 $char = [a-zA-Z]
-$sym  = [_\.]
+$sym  = [_]
 $numerical = [0-9]
 $reserved = [@\#:\-\$]
 $idchar = [$numerical $sym $char]
 $sep = $white
 
-@id = $char $idchar*
+@id = $char $idchar (:: $idchar +)*
 
 
 :-
@@ -53,7 +53,7 @@ $sep = $white
     "algo"      { const KWAlgo }
     "ns"        { const KWNS }
     "let"       { const KWLet }
-    @id         { Id . Binding . L.decodeUtf8 . BS.toStrict }
+    @id         { Id . toId }
     $sep        ;
 
     $reserved { \s -> error $ "Reserved symbol: " ++ BS.unpack s }
@@ -81,8 +81,16 @@ data Lexeme
     | KWAlgo -- ^ keyword @algo@
     | KWSf -- ^ keyword @sf@
     | KWNS -- ^ keyword @ns@ (namespace)
-    | Id Binding -- ^ an identifier
+    | Id [Binding] -- ^ an identifier
     deriving Show
+
+
+convertId :: ByteString.ByteString -> Binding
+convertId = Binding . L.decodeUtf8 . BS.toStrict
+
+
+toId :: ByteString.ByteString -> [Binding]
+toId = map Binding . T.splitOn "::" . L.decodeUtf8 . BS.toStrict
 
 
 -- | Tokenize a lazy bytestring into lexemes
