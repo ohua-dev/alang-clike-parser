@@ -1,8 +1,8 @@
-resolver: lts-9.1
+flags: {}
+extra-package-dbs: []
 packages:
 - .
 - location: ohua-core
   extra-dep: true
 extra-deps: []
-flags: {}
-extra-package-dbs: []
+resolver: lts-9.6

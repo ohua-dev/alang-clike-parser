@@ -20,6 +20,7 @@ library:
   - text
   - array
   - unordered-containers
+  - monad-loops
   build-tools:
   - alex
   - happy

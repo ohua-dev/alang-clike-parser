@@ -7,9 +7,13 @@ fn square (x) {
     add(x, x)
 }
 
+// a line comment for test reasons
 fn algo1 (someParam) {
     let a = square(someParam);
 
+
+    /* a block comment
+    for test reasons */
     let coll0 = for i in coll {
         square(i)
     };
@@ -19,7 +23,9 @@ fn algo1 (someParam) {
     } else {
         a
     }
-    
+    /* another block comment
+    for test reasons */
+
 }
 
 fn main (param) {

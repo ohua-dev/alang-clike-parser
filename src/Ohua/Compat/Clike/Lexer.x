@@ -18,9 +18,10 @@ import qualified Data.Text.Encoding as L
 import qualified Data.ByteString.Lazy.Char8 as BS
 import Ohua.Types
 import Prelude hiding (lex)
+import Control.Monad.Loops
 }
 
-%wrapper "basic-bytestring"
+%wrapper "monad-bytestring"
 
 $char = [a-zA-Z]
 $sym  = [_]
@@ -34,30 +35,46 @@ $sep = $white
 
 :-
 
-    "("         { const LParen }
-    ")"         { const RParen }
-    "["         { const LBracket }
-    "]"         { const RBracket }
-    "{"         { const LBrace }
-    "}"         { const RBrace }
-    "="         { const OpEq }
-    ","         { const Comma }
-    ";"         { const Semicolon }
-    "fn"        { const KWFn }
-    "if"        { const KWIf }
-    "else"      { const KWElse }
-    "for"       { const KWFor }
-    "in"        { const KWIn }
-    "use"       { const KWUse }
-    "sf"        { const KWSf }
-    "algo"      { const KWAlgo }
-    "ns"        { const KWNS }
-    "let"       { const KWLet }
-    @qualid     { QualId . toQualId }
-    @id         { UnqualId . convertId }
-    $sep        ;
+    <0> {
+        "("         { direct LParen }
+        ")"         { direct RParen }
+        "["         { direct LBracket }
+        "]"         { direct RBracket }
+        "{"         { direct LBrace }
+        "}"         { direct RBrace }
+        "="         { direct OpEq }
+        ","         { direct Comma }
+        ";"         { direct Semicolon }
+        "fn"        { direct KWFn }
+        "if"        { direct KWIf }
+        "else"      { direct KWElse }
+        "for"       { direct KWFor }
+        "in"        { direct KWIn }
+        "use"       { direct KWUse }
+        "sf"        { direct KWSf }
+        "algo"      { direct KWAlgo }
+        "ns"        { direct KWNS }
+        "let"       { direct KWLet }
+        @qualid     { tokenOverInputStr $ QualId . toQualId }
+        @id         { tokenOverInputStr $ UnqualId . convertId }
+        $sep        ;
 
-    $reserved { \s -> error $ "Reserved symbol: " ++ BS.unpack s }
+        "/*" { begin blockComment }
+        "//" { begin lineComment }
+    }
+
+    <lineComment> {
+        \n { begin 0 }
+        . ;
+    }
+
+    <blockComment> {
+        "*/" { begin 0 }
+        . ;
+        \n ;
+    }
+
+    $reserved { withMatchedInput $ \s -> alexError $ "Reserved symbol: " ++ BS.unpack s }
 
 
 {
@@ -87,6 +104,12 @@ data Lexeme
     deriving Show
 
 
+direct tok _ _ = pure $ Just tok
+
+tokenOverInputStr f = withMatchedInput (pure . Just . f)
+
+withMatchedInput f (_, _, input, _) len = f (BS.take len input)
+
 convertId :: ByteString.ByteString -> Binding
 convertId = Binding . L.decodeUtf8 . BS.toStrict
 
@@ -95,8 +118,11 @@ toQualId :: ByteString.ByteString -> [Binding]
 toQualId = map Binding . T.splitOn "::" . L.decodeUtf8 . BS.toStrict
 
 
+alexEOF = pure Nothing
+
+
 -- | Tokenize a lazy bytestring into lexemes
 tokenize :: BS.ByteString -> [Lexeme]
-tokenize = alexScanTokens
+tokenize bs = either error id $ runAlex bs $ unfoldM alexMonadScan
 
 }
