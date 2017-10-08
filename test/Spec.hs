@@ -18,6 +18,10 @@ lp = parseExp . tokenize
 main :: IO ()
 main = hspec $ do
     describe "parser and lexer" $ do
+        it "parses an unqualified binding" $
+            lp "a" `shouldBe` "a"
+        it "parses a qualified binding" $
+            lp "a::b::c" `shouldBe` (Var (Qual ["a", "b"] "c"))
         it "parse an apply" $
             lp "something(a, b, c)" `shouldBe` ("something" `Apply` "a" `Apply` "b" `Apply` "c")
         it "parses a let" $

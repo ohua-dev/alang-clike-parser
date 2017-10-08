@@ -26,12 +26,11 @@ import Control.Monad.Loops
 $char = [a-zA-Z]
 $sym  = [_]
 $numerical = [0-9]
-$reserved = [@\#:\-\$]
+$reserved = [@\#\-\$]
 $idchar = [$numerical $sym $char]
 $sep = $white
 
 @id = $char $idchar*
-@qualid = @id (:: @id)+
 
 :-
 
@@ -45,6 +44,8 @@ $sep = $white
         "="         { direct OpEq }
         ","         { direct Comma }
         ";"         { direct Semicolon }
+        "::"        { direct DoubleColon }
+        ":"         { direct Colon }
         "fn"        { direct KWFn }
         "if"        { direct KWIf }
         "else"      { direct KWElse }
@@ -55,8 +56,9 @@ $sep = $white
         "algo"      { direct KWAlgo }
         "ns"        { direct KWNS }
         "let"       { direct KWLet }
-        @qualid     { tokenOverInputStr $ QualId . toQualId }
-        @id         { tokenOverInputStr $ UnqualId . convertId }
+        "<"         { direct LAngleBracket }
+        ">"         { direct RAngleBracket }
+        @id         { tokenOverInputStr (Id . convertId) }
         $sep        ;
 
         "/*" { begin blockComment }
@@ -86,9 +88,13 @@ data Lexeme
     | RBracket -- ^ @]@
     | LBrace -- ^ @{@
     | RBrace -- ^ @}@
+    | LAngleBracket -- ^ @<@
+    | RAngleBracket -- ^ @>@
     | OpEq -- ^ @=@
     | Comma -- ^ @,@
     | Semicolon -- ^ @;@
+    | Colon -- ^ @:@
+    | DoubleColon -- ^ @::@
     | KWLet -- ^ keyword @let@
     | KWIf -- ^ keyword @if@
     | KWElse -- ^ keyword @else@
@@ -99,8 +105,7 @@ data Lexeme
     | KWAlgo -- ^ keyword @algo@
     | KWSf -- ^ keyword @sf@
     | KWNS -- ^ keyword @ns@ (namespace)
-    | UnqualId Binding
-    | QualId [Binding] -- ^ an identifier
+    | Id Binding
     deriving Show
 
 

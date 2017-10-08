@@ -24,6 +24,8 @@ import qualified Data.HashMap.Strict as HM
 import Data.Either
 import Data.Maybe
 import qualified Ohua.ParseTools.Refs as Refs
+import qualified Data.Char as C
+import Control.Arrow ((***))
 
 }
 
@@ -35,8 +37,7 @@ import qualified Ohua.ParseTools.Refs as Refs
 
 %token
 
-    id      { UnqualId $$ }
-    qualid  { QualId $$ }
+    id      { Id $$ }
 
     '='     { OpEq }
     fn      { KWFn }
@@ -57,16 +58,41 @@ import qualified Ohua.ParseTools.Refs as Refs
     '{'     { LBrace }
     '}'     { RBrace }
     ';'     { Semicolon }
+    ':'     { Colon }
+    '::'    { DoubleColon }
+    '<'     { LAngleBracket }
+    '>'     { RAngleBracket }
 
 %%
 
 QualId 
-    : id { [$1] }
-    | qualid { $1 }
+    : id '::' QualId    { $1 : $3 }
+    | id                { [$1] }
+
+NSRef 
+    : QualId    { bndsToNSRef $1 }
+
+QualBind
+    : QualId    { toQualBnd $1 }
+
+TyExpr 
+    : SomeId '<' TyExprList '>' { $3 (TyRef (tyVarFromId $1)) }
+    | SomeId                    { TyRef (tyVarFromId $1) }
+
+TyExprList
+    : TyExpr ',' TyExprList { $3 . (`TyApp` $1) }
+    | TyExpr                { (`TyApp` $1) }
 
 SomeId 
-    : id     { Unqual $1 }
-    | qualid { Qual (toQualBnd $1) }
+    : id        { Unqual $1 }
+    | QualBind  { Qual $1 }
+
+AnnId
+    : id TyAnn  { $2 $1 }
+
+TyAnn
+    : ':' TyExpr    { Annotated (Just $2) }
+    |               { withNoAnn }
 
 Stmts
     : NoSemStmt Stmts   { $1 $2 }
@@ -74,28 +100,28 @@ Stmts
     | Exp               { $1 }
 
 NoSemStmt
-    : NamedFundef           { let (name, fun) = $1 in Let (Direct name) fun }
+    : NamedFundef           { let (name, fun) = $1 in Let (Direct $ withNoAnn name) fun }
 
 StmtSem
-    : Exp                   { Let "_" $1 }
+    : Exp                   { lamWithIgnArg $1 }
     | let Destruct '=' Exp  { Let $2 $4 }
 
 Exp 
-    : fn Fundef                         { $2 }
+    : fn Fundef                             { $2 }
     | SomeId '(' Apply ')'                  { $3 (Var $1) }
     | SomeId                                { Var $1 }
-    | for Destruct in Exp '{' Stmts '}'  { Refs.smapBuiltin `Apply` Lambda $2 $6 `Apply` $4 }
+    | for Destruct in Exp '{' Stmts '}'     { Refs.smapBuiltin `Apply` Lambda $2 $6 `Apply` $4 }
     | if '(' Exp ')' '{' Stmts '}' else '{' Stmts '}' 
-        { Refs.ifBuiltin `Apply` $3 `Apply` Lambda "_" $6 `Apply` Lambda "_" $10 }
-    | '{' Stmts '}'                     { $2 }
+        { Refs.ifBuiltin `Apply` $3 `Apply` lamWithIgnArg $6 `Apply` lamWithIgnArg $10 }
+    | '{' Stmts '}'                         { $2 }
 
 Destruct 
-    : id       { Direct $1 }
+    : AnnId         { Direct $1 :: AbstractAssignment (Annotated (Maybe DefaultTyExpr) Binding) }
     | '[' Vars ']'  { Destructure $2 }
 
 Vars 
-    : id ',' Vars   { $1 : $3 }
-    | id            { [$1] }
+    : AnnId ',' Vars    { $1 : $3 }
+    | AnnId             { [$1] }
 
 Apply
     : ApplyParams   { $1 }
@@ -110,17 +136,17 @@ Fundef
 
 Params
     : HasParams { $1 }
-    |           { Lambda "_" }
+    |           { lamWithIgnArg }
 
 HasParams
-    : Destruct ',' Params   { Lambda $1 . $3 }
-    | Destruct              { Lambda $1 }
+    : Destruct ',' HasParams    { Lambda $1 . $3 }
+    | Destruct                  { Lambda $1 }
 
 NamedFundef
-    : fn id Fundef { ($2, $3) }
+    : fn id Fundef { (withNoAnn $2, $3) }
 
 NS 
-    : ns QualId ';' Defs { mkNS (bndsToNSRef $2) $4 }
+    : ns NSRef ';' Defs { mkNS $2 $4 }
 
 Defs 
     : Def Defs  { $1 : $2 }
@@ -135,18 +161,30 @@ Reqdefs
     | ReqDef                { [$1] }
 
 ReqDef 
-    : QualId '(' Refers ')' { (bndsToNSRef $1, $3) }
-    | QualId                { (bndsToNSRef $1, []) }
+    : NSRef '(' Refers ')' { ($1, $3) }
+    | NSRef                { ($1, []) }
 
 Refers 
-    : id ',' Refers    { $1 : $3 }
-    | id               { [$1] }
+    : id ',' Refers         { $1 : $3 }
+    | id                    { [$1] }
     |                       { [] }
 
 {
+lamWithIgnArg ::  AExpr (Annotated (Maybe a) Binding) b -> AExpr (Annotated (Maybe a) Binding) b
+lamWithIgnArg = Lambda (Direct (withNoAnn "_"))
+
+
+withNoAnn :: a -> Annotated (Maybe ann) a
+withNoAnn a = Annotated Nothing a
+
+
 bndsToNSRef :: [Binding] -> NSRef
 bndsToNSRef = nsRefFromList
 
+tyVarFromId :: SomeBinding -> SomeTyVar
+tyVarFromId bnd | C.isUpper (T.head $ unBinding lbnd) = TyCon bnd
+  where lbnd = case bnd of Qual q -> qbName q; Unqual bnd -> bnd;
+tyVarFromId bnd = TyVar bnd
 
 toQualBnd :: [Binding] -> QualifiedBinding
 toQualBnd [] = error "empty id"
@@ -166,11 +204,11 @@ parseError tokens = error $ "Parse error" ++ show tokens
 parseNS :: [Lexeme] -> Namespace SomeBinding
 parseNS = parseNSRaw
 
-mkNS :: NSRef -> [Either (Either [(NSRef, [Binding])] [(NSRef, [Binding])]) (Binding, Expr SomeBinding)] -> Namespace SomeBinding
+mkNS :: NSRef -> [Either (Either [(NSRef, [Binding])] [(NSRef, [Binding])]) (Annotated (Maybe DefaultTyExpr) Binding, OptTyAnnExpr SomeBinding)] -> Namespace SomeBinding
 mkNS name defs = Namespace name (concat algoRequires) (concat sfRequires) fundefs
   where
     (requireList, fundefList) = partitionEithers defs
     (sfRequires, algoRequires) = partitionEithers requireList
-    fundefs = HM.fromList fundefList
+    fundefs = HM.fromList $ map ((\(Annotated v _) -> v) *** removeTyAnns) fundefList
 
 }
