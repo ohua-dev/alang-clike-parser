@@ -16,7 +16,6 @@ module Ohua.Compat.Clike.Parser
     ) where
 
 import Ohua.Compat.Clike.Lexer
-import qualified Data.Text as T
 import Ohua.ALang.Lang
 import Ohua.Types
 import Ohua.ALang.NS
@@ -77,21 +76,22 @@ NoSemStmt
     : NamedFundef           { let (name, fun) = $1 in Let (Direct name) fun }
 
 StmtSem
-    : Exp                   { Let "_" $1 }
+    : Exp                   { ignoreArgLet $1 }
     | let Destruct '=' Exp  { Let $2 $4 }
 
 Exp 
-    : fn Fundef                         { $2 }
+    : fn Fundef                             { $2 }
     | SomeId '(' Apply ')'                  { $3 (Var $1) }
     | SomeId                                { Var $1 }
-    | for Destruct in Exp '{' Stmts '}'  { Refs.smapBuiltin `Apply` Lambda $2 $6 `Apply` $4 }
-    | if '(' Exp ')' '{' Stmts '}' else '{' Stmts '}' 
-        { Refs.ifBuiltin `Apply` $3 `Apply` Lambda "_" $6 `Apply` Lambda "_" $10 }
-    | '{' Stmts '}'                     { $2 }
+    | for Destruct in Exp '{' Stmts '}'     { Refs.smapBuiltin `Apply` Lambda $2 $6 `Apply` $4 }
+    | if '(' Exp ')'
+           '{' Stmts '}'
+      else '{' Stmts '}'                    { Refs.ifBuiltin `Apply` $3 `Apply` ignoreArgLambda $6 `Apply` ignoreArgLambda $10 }
+    | '{' Stmts '}'                         { $2 }
 
 Destruct 
-    : id       { Direct $1 }
-    | '[' Vars ']'  { Destructure $2 }
+    : id           { Direct $1 }
+    | '[' Vars ']' { Destructure $2 }
 
 Vars 
     : id ',' Vars   { $1 : $3 }
@@ -141,9 +141,13 @@ ReqDef
 Refers 
     : id ',' Refers    { $1 : $3 }
     | id               { [$1] }
-    |                       { [] }
+    |                  { [] }
 
 {
+
+ignoreArgLambda = Lambda (Direct "_")
+ignoreArgLet = Let (Direct "_")
+
 bndsToNSRef :: [Binding] -> NSRef
 bndsToNSRef = nsRefFromList
 

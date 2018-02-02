@@ -10,15 +10,17 @@
 -- This source code is licensed under the terms described in the associated LICENSE.TXT file
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# OPTIONS_GHC -funbox-strict-fields #-}
 module Ohua.Compat.Clike.Lexer (tokenize, Lexeme(..)) where
 
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as L
 import qualified Data.ByteString.Lazy.Char8 as BS
+import qualified Data.ByteString.Char8 as B
 import Ohua.Types
 import Prelude hiding (lex)
 import Control.Monad.Loops
+import qualified Ohua.Util.Str as Str
+import Data.Functor.Foldable
 }
 
 %wrapper "monad-bytestring"
@@ -110,13 +112,17 @@ tokenOverInputStr f = withMatchedInput (pure . Just . f)
 
 withMatchedInput f (_, _, input, _) len = f (BS.take len input)
 
-convertId :: ByteString.ByteString -> Binding
-convertId = Binding . L.decodeUtf8 . BS.toStrict
+convertId :: BS.ByteString -> Binding
+convertId = Binding . Str.fromString . BS.unpack
 
 
-toQualId :: ByteString.ByteString -> [Binding]
-toQualId = map Binding . T.splitOn "::" . L.decodeUtf8 . BS.toStrict
+toQualId :: BS.ByteString -> [Binding]
+toQualId = map (Binding . Str.fromString . B.unpack) . splitOn "::" . BS.toStrict
 
+splitOn str = ana $ \bs ->
+  case B.breakSubstring str bs of
+    (b1, b2) | B.null b1 && B.null b2 -> Nil
+             | otherwise -> Cons b1 (B.drop (B.length str) b2)
 
 alexEOF = pure Nothing
 
