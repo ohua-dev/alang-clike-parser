@@ -54,18 +54,31 @@ main = hspec $ do
             lp "a (b/* ignore this */)" `shouldBe` ("a" `Apply` "b")
         it "ignores a block comment with newline preceding an expression" $ do
             lp "/* ignore this\n */ a" `shouldBe` "a"
+        it "parses a function with signature" $ (parseTLFunDef $ tokenize "fn func (x : int, y : Maybe<String>, z : T<B, a>) -> Q { x }")
+          `shouldBe`
+          ("func", Annotated (FunAnn [TyRef "int", TyRef "Maybe" `TyApp` TyRef "String", (TyRef "T" `TyApp` TyRef "B") `TyApp` TyRef "a"] (TyRef "Q"))
+              $ Lambda "x"
+              $ Lambda "y"
+              $ Lambda "z"
+              $ Var "x")
+        it "parses no return as unit" $ (parseTLFunDef $ tokenize "fn f () { x }")
+          `shouldBe`
+          ("f", Annotated (FunAnn [] (TyRef "()")) $ Lambda "_" (Var "x"))
         it "parses the example module" $ (parseNS . tokenize <$> B.readFile "test-resources/something.ohuac")
             `shouldReturn`
             Namespace (nsRefFromList ["some_ns"])
                 [ (nsRefFromList ["some","module"], ["a"]) ]
                 [ (nsRefFromList ["ohua","math"],["add","isZero"]) ]
-                [ ("square", Lambda "x" ("add" `Apply` "x" `Apply` "x"))
-                , ("algo1", Lambda "someParam" $
+                [ ("square", Annotated (FunAnn [TyRef "int"] (TyRef "int")) $ Lambda "x" ("add" `Apply` "x" `Apply` "x"))
+                , ("algo1",
+                   Annotated (FunAnn [TyRef "T"] (TyRef "Bool")) $
+                   Lambda "someParam" $
                         Let "a" ("square" `Apply` "someParam") $
                         Let "coll0" ("ohua.lang/smap" `Apply` Lambda "i" ("square" `Apply` "i") `Apply` "coll") $
                         ("ohua.lang/if"
                             `Apply` ("isZero" `Apply` "a")
                             `Apply` Lambda "_" "coll0"
                             `Apply` Lambda "_" "a"))
-                , ("main", Lambda "param"  ("algo0" `Apply` "param"))
+                , ("main", Annotated (FunAnn [TyRef "SomeType"] (TyRef "()")) $ Lambda "param"  ("algo0" `Apply` "param"))
                 ]
+

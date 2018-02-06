@@ -44,9 +44,13 @@ $sep = $white
         "]"         { direct RBracket }
         "{"         { direct LBrace }
         "}"         { direct RBrace }
+	"<"         { direct LAngle }
+	">"         { direct RAngle }
         "="         { direct OpEq }
         ","         { direct Comma }
+	":"         { direct Colon }
         ";"         { direct Semicolon }
+	"->" 	    { direct RArrow }
         "fn"        { direct KWFn }
         "if"        { direct KWIf }
         "else"      { direct KWElse }
@@ -90,7 +94,11 @@ data Lexeme
     | RBrace -- ^ @}@
     | OpEq -- ^ @=@
     | Comma -- ^ @,@
+    | Colon -- ^ @:@
     | Semicolon -- ^ @;@
+    | LAngle -- ^ @<@
+    | RAngle -- ^ @>@
+    | RArrow -- ^ @->@
     | KWLet -- ^ keyword @let@
     | KWIf -- ^ keyword @if@
     | KWElse -- ^ keyword @else@

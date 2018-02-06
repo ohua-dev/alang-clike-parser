@@ -11,7 +11,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE LambdaCase #-}
 module Ohua.Compat.Clike.Parser
-    ( parseNS, parseExp
+    ( parseNS, parseExp, parseTLFunDef
     , Namespace(..)
     ) where
 
@@ -29,6 +29,7 @@ import qualified Ohua.ParseTools.Refs as Refs
 
 %name parseExpH Exp
 %name parseNSRaw NS
+%name parseTLFunDef TLFunDef
 %tokentype { Lexeme }
 %error { parseError }
 
@@ -55,12 +56,16 @@ import qualified Ohua.ParseTools.Refs as Refs
     ']'     { RBracket }
     '{'     { LBrace }
     '}'     { RBrace }
+    ':'     { Colon }
     ';'     { Semicolon }
+    '<'     { LAngle }
+    '>'     { RAngle }
+    '->'    { RArrow }
 
 %%
 
 QualId 
-    : id { [$1] }
+    : id     { [$1] }
     | qualid { $1 }
 
 SomeId 
@@ -73,14 +78,14 @@ Stmts
     | Exp               { $1 }
 
 NoSemStmt
-    : NamedFundef           { let (name, fun) = $1 in Let (Direct name) fun }
+    : NamedFunDef           { let (name, fun) = $1 in Let (Direct name) fun }
 
 StmtSem
     : Exp                   { ignoreArgLet $1 }
     | let Destruct '=' Exp  { Let $2 $4 }
 
 Exp 
-    : fn Fundef                             { $2 }
+    : fn FunDef                             { $2 }
     | SomeId '(' Apply ')'                  { $3 (Var $1) }
     | SomeId                                { Var $1 }
     | for Destruct in Exp '{' Stmts '}'     { Refs.smapBuiltin `Apply` Lambda $2 $6 `Apply` $4 }
@@ -105,19 +110,49 @@ ApplyParams
     : Exp ',' Apply  { $3 . (`Apply` $1) }
     | Exp            { (`Apply` $1) }
 
-Fundef 
-    : '(' Params ')' '{' Stmts '}' { $2 $5 }
+FunDef 
+    : '(' Params ')' FunBody { $2 $4 }
+
+FunBody
+    : '{' Stmts '}' { $2 }
 
 Params
     : HasParams { $1 }
-    |           { Lambda "_" }
+    |           { ignoreArgLambda }
 
 HasParams
-    : Destruct ',' Params   { Lambda $1 . $3 }
-    | Destruct              { Lambda $1 }
+    : Destruct ',' HasParams   { Lambda $1 . $3 }
+    | Destruct                 { Lambda $1 }
 
-NamedFundef
-    : fn id Fundef { ($2, $3) }
+NamedFunDef
+    : fn id FunDef { ($2, $3) }
+
+TLFunDef
+    : fn id '(' AnnParams ')' FunRetAnn FunBody { let (types, e) = $4 in ($2, Annotated (FunAnn types $6) (e $7)) }
+
+AnnParams
+    : HasAnnParams { $1 }
+    |              { ([], ignoreArgLambda) }
+
+HasAnnParams
+    : Destruct ':' TyExpr ',' HasAnnParams { let (l, e) = $5 in ($3 : l, Lambda $1 . e) }
+    | Destruct ':' TyExpr                  { ([$3], Lambda $1) }
+
+FunRetAnn
+    : '->' TyExpr { $2 }
+    |             { unit }
+
+TyExpr
+    : TyExpr '<' TyExprLst '>' { foldl TyApp $1 ($3 :: [TyExpr SomeBinding]) }
+    | TyVar                    { $1 }
+
+TyExprLst
+    : TyExpr ',' TyExprLst  { $1 : $3 }
+    | TyExpr                { [$1] :: [TyExpr SomeBinding] }
+
+TyVar
+    : '(' ')' { unit }
+    | SomeId  { TyRef $1 }
 
 NS 
     : ns QualId ';' Defs { mkNS (bndsToNSRef $2) $4 }
@@ -128,7 +163,7 @@ Defs
 
 Def : use sf Reqdefs ';'    { Left (Left $3) }
     | use algo Reqdefs ';'  { Left (Right $3) }
-    | NamedFundef           { Right $1 }
+    | TLFunDef              { Right $1 }
 
 Reqdefs 
     : ReqDef ',' Reqdefs    { $1 : $3 }
@@ -145,7 +180,11 @@ Refers
 
 {
 
+unit = TyRef "()"
+
+ignoreArgLambda :: Expr SomeBinding -> Expr SomeBinding
 ignoreArgLambda = Lambda (Direct "_")
+ignoreArgLet :: Expr SomeBinding -> Expr SomeBinding -> Expr SomeBinding
 ignoreArgLet = Let (Direct "_")
 
 bndsToNSRef :: [Binding] -> NSRef
@@ -167,10 +206,10 @@ parseError tokens = error $ "Parse error" ++ show tokens
 
 
 -- | Parse a stream of tokens into a namespace
-parseNS :: [Lexeme] -> Namespace SomeBinding
+parseNS :: [Lexeme] -> Namespace (Annotated (FunAnn SomeBinding) (Expr SomeBinding))
 parseNS = parseNSRaw
 
-mkNS :: NSRef -> [Either (Either [(NSRef, [Binding])] [(NSRef, [Binding])]) (Binding, Expr SomeBinding)] -> Namespace SomeBinding
+mkNS :: NSRef -> [Either (Either [(NSRef, [Binding])] [(NSRef, [Binding])]) (Binding, Annotated (FunAnn SomeBinding) (Expr SomeBinding))] -> Namespace (Annotated (FunAnn SomeBinding) (Expr SomeBinding))
 mkNS name defs = Namespace name (concat algoRequires) (concat sfRequires) fundefs
   where
     (requireList, fundefList) = partitionEithers defs

@@ -3,12 +3,12 @@ ns some_ns;
 use sf ohua::math (add, isZero);
 use algo some::module (a);
 
-fn square (x) {
+fn square (x : int) -> int {
     add(x, x)
 }
 
 // a line comment for test reasons
-fn algo1 (someParam) {
+fn algo1 (someParam : T) -> Bool {
     let a = square(someParam);
 
 
@@ -28,6 +28,6 @@ fn algo1 (someParam) {
 
 }
 
-fn main (param) {
+fn main (param : SomeType) {
     algo0(param)
 }
