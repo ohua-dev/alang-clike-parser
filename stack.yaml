@@ -2,7 +2,9 @@ flags: {}
 extra-package-dbs: []
 packages:
 - .
-- location: ohua-core
+- location:
+    git: https://github.com/ohua-dev/ohua-core
+    commit: 22a1187ae5d57cc935729b20a69f627cd773e6f3 
   extra-dep: true
 extra-deps: []
 resolver: lts-9.6
