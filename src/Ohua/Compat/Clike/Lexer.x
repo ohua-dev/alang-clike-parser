@@ -61,6 +61,7 @@ $sep = $white
         "algo"      { direct KWAlgo }
         "ns"        { direct KWNS }
         "let"       { direct KWLet }
+	"mut" 	    { direct KWMut }
         @qualid     { tokenOverInputStr $ QualId . toQualId }
         @id         { tokenOverInputStr $ UnqualId . convertId }
         $sep        ;
@@ -109,6 +110,7 @@ data Lexeme
     | KWAlgo -- ^ keyword @algo@
     | KWSf -- ^ keyword @sf@
     | KWNS -- ^ keyword @ns@ (namespace)
+    | KWMut -- ^ keyword @mut@
     | UnqualId Binding
     | QualId [Binding] -- ^ an identifier
     deriving Show

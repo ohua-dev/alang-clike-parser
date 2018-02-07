@@ -7,6 +7,7 @@ import           Ohua.ALang.Lang
 import           Ohua.ALang.NS
 import           Ohua.Compat.Clike.Lexer
 import           Ohua.Compat.Clike.Parser
+import           Ohua.Compat.Clike.Types
 import           Ohua.Types
 import           Test.Hspec
 
@@ -56,22 +57,33 @@ main = hspec $ do
             lp "/* ignore this\n */ a" `shouldBe` "a"
         it "parses a function with signature" $ (parseTLFunDef $ tokenize "fn func (x : int, y : Maybe<String>, z : T<B, a>) -> Q { x }")
           `shouldBe`
-          ("func", Annotated (FunAnn [TyRef "int", TyRef "Maybe" `TyApp` TyRef "String", (TyRef "T" `TyApp` TyRef "B") `TyApp` TyRef "a"] (TyRef "Q"))
+          ("func", Annotated (FunAnn [ Immutable $ TyRef "int"
+                                     , Immutable $ TyRef "Maybe" `TyApp` TyRef "String"
+                                     , Immutable $ (TyRef "T" `TyApp` TyRef "B") `TyApp` TyRef "a"
+                                     ] (Immutable $ TyRef "Q"))
               $ Lambda "x"
               $ Lambda "y"
               $ Lambda "z"
               $ Var "x")
+        it "parses mutable arguments" $ (parseTLFunDef $ tokenize "fn func (x : mut Object, y:mut O) -> Q { x }")
+          `shouldBe`
+          ("func", Annotated (FunAnn [ Mutable $ TyRef "Object"
+                                     , Mutable $ TyRef "O"
+                                     ] (Immutable $ TyRef "Q"))
+                   $ Lambda "x"
+                   $ Lambda "y"
+                   $ Var "x")
         it "parses no return as unit" $ (parseTLFunDef $ tokenize "fn f () { x }")
           `shouldBe`
-          ("f", Annotated (FunAnn [] (TyRef "()")) $ Lambda "_" (Var "x"))
+          ("f", Annotated (FunAnn [] (Immutable tupleConstructor)) $ Lambda "_" (Var "x"))
         it "parses the example module" $ (parseNS . tokenize <$> B.readFile "test-resources/something.ohuac")
             `shouldReturn`
             Namespace (nsRefFromList ["some_ns"])
                 [ (nsRefFromList ["some","module"], ["a"]) ]
                 [ (nsRefFromList ["ohua","math"],["add","isZero"]) ]
-                [ ("square", Annotated (FunAnn [TyRef "int"] (TyRef "int")) $ Lambda "x" ("add" `Apply` "x" `Apply` "x"))
+                [ ("square", Annotated (FunAnn [Immutable $ TyRef "int"] (Immutable $ TyRef "int")) $ Lambda "x" ("add" `Apply` "x" `Apply` "x"))
                 , ("algo1",
-                   Annotated (FunAnn [TyRef "T"] (TyRef "Bool")) $
+                   Annotated (FunAnn [Mutable $ TyRef "T"] (Immutable $ TyRef "Bool")) $
                    Lambda "someParam" $
                         Let "a" ("square" `Apply` "someParam") $
                         Let "coll0" ("ohua.lang/smap" `Apply` Lambda "i" ("square" `Apply` "i") `Apply` "coll") $
@@ -79,6 +91,6 @@ main = hspec $ do
                             `Apply` ("isZero" `Apply` "a")
                             `Apply` Lambda "_" "coll0"
                             `Apply` Lambda "_" "a"))
-                , ("main", Annotated (FunAnn [TyRef "SomeType"] (TyRef "()")) $ Lambda "param"  ("algo0" `Apply` "param"))
+                , ("main", Annotated (FunAnn [Immutable $ TyRef "SomeType"] (Immutable tupleConstructor)) $ Lambda "param"  ("algo0" `Apply` "param"))
                 ]
 

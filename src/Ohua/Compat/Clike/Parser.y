@@ -16,6 +16,7 @@ module Ohua.Compat.Clike.Parser
     ) where
 
 import Ohua.Compat.Clike.Lexer
+import Ohua.Compat.Clike.Types
 import Ohua.ALang.Lang
 import Ohua.Types
 import Ohua.ALang.NS
@@ -49,6 +50,7 @@ import qualified Ohua.ParseTools.Refs as Refs
     else    { KWElse }
     for     { KWFor }
     in      { KWIn }
+    mut     { KWMut } 
     ','     { Comma }
     '('     { LParen }
     ')'     { RParen }
@@ -128,31 +130,36 @@ NamedFunDef
     : fn id FunDef { ($2, $3) }
 
 TLFunDef
-    : fn id '(' AnnParams ')' FunRetAnn FunBody { let (types, e) = $4 in ($2, Annotated (FunAnn types $6) (e $7)) }
+    : fn id '(' AnnParams ')' FunRetAnn FunBody { let (types, e) = $4 in ($2, Annotated (FunAnn types $ Immutable $6) (e $7)) }
 
 AnnParams
     : HasAnnParams { $1 }
     |              { ([], ignoreArgLambda) }
 
 HasAnnParams
-    : Destruct ':' TyExpr ',' HasAnnParams { let (l, e) = $5 in ($3 : l, Lambda $1 . e) }
-    | Destruct ':' TyExpr                  { ([$3], Lambda $1) }
+    : Destruct ':' InputTyAnn ',' HasAnnParams { let (l, e) = $5 in ($3 : l, Lambda $1 . e) }
+    | Destruct ':' InputTyAnn                  { ([$3], Lambda $1) }
+
+InputTyAnn
+    : mut TyExpr { Mutable $2 }
+    | TyExpr     { Immutable $1 } 
 
 FunRetAnn
     : '->' TyExpr { $2 }
-    |             { unit }
+    |             { tupleConstructor }
 
 TyExpr
-    : TyExpr '<' TyExprLst '>' { foldl TyApp $1 ($3 :: [TyExpr SomeBinding]) }
-    | TyVar                    { $1 }
+    : '(' TyExprLst ')'           { foldl TyApp tupleConstructor $2 }
+    | TyExpr '<' TyExprLst '>' { foldl TyApp $1 ($3 :: [TyExpr SomeBinding]) }
+    | SomeId                   { TyRef $1 }
 
 TyExprLst
-    : TyExpr ',' TyExprLst  { $1 : $3 }
-    | TyExpr                { [$1] :: [TyExpr SomeBinding] }
+    : NonEmptyTyExprList { $1 }
+    |                    { [] }
 
-TyVar
-    : '(' ')' { unit }
-    | SomeId  { TyRef $1 }
+NonEmptyTyExprList
+    : TyExpr ',' NonEmptyTyExprList  { $1 : $3 }
+    | TyExpr                         { [$1] :: [TyExpr SomeBinding] }
 
 NS 
     : ns QualId ';' Defs { mkNS (bndsToNSRef $2) $4 }
@@ -180,7 +187,6 @@ Refers
 
 {
 
-unit = TyRef "()"
 
 ignoreArgLambda :: Expr SomeBinding -> Expr SomeBinding
 ignoreArgLambda = Lambda (Direct "_")
@@ -206,10 +212,10 @@ parseError tokens = error $ "Parse error" ++ show tokens
 
 
 -- | Parse a stream of tokens into a namespace
-parseNS :: [Lexeme] -> Namespace (Annotated (FunAnn SomeBinding) (Expr SomeBinding))
+parseNS :: [Lexeme] -> Namespace (Annotated (FunAnn RustTyExpr) (Expr SomeBinding))
 parseNS = parseNSRaw
 
-mkNS :: NSRef -> [Either (Either [(NSRef, [Binding])] [(NSRef, [Binding])]) (Binding, Annotated (FunAnn SomeBinding) (Expr SomeBinding))] -> Namespace (Annotated (FunAnn SomeBinding) (Expr SomeBinding))
+mkNS :: NSRef -> [Either (Either [(NSRef, [Binding])] [(NSRef, [Binding])]) (Binding, Annotated (FunAnn RustTyExpr) (Expr SomeBinding))] -> Namespace (Annotated (FunAnn RustTyExpr) (Expr SomeBinding))
 mkNS name defs = Namespace name (concat algoRequires) (concat sfRequires) fundefs
   where
     (requireList, fundefList) = partitionEithers defs
