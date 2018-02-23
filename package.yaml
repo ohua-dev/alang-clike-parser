@@ -1,9 +1,9 @@
 name: alang-clike-parser
 version: '0.1.0.0'
 category: Devel
-author: Sebastian Ertel, Justus Adam
+author: Justus Adam
 maintainer: dev@justus.science
-copyright: © 2017 Sebastian Ertel, Justus Adam
+copyright: © 2017 Justus Adam
 license: OtherLicense
 github: ohua-dev/alang-clike-parser
 extra-source-files:

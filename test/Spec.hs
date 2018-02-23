@@ -76,6 +76,9 @@ main = hspec $ do
         it "parses no return as unit" $ (parseTLFunDef $ tokenize "fn f () { x }")
           `shouldBe`
           ("f", Annotated (FunAnn [] (Immutable tupleConstructor)) $ Lambda "_" (Var "x"))
+        it "parses tuples in return types" $ (parseTLFunDef $ tokenize "fn func () -> (A, B) { x }")
+          `shouldBe`
+          ("func", Annotated (FunAnn [] (Immutable (tupleConstructor `TyApp` TyRef "A" `TyApp` TyRef "B"))) $ Lambda "_" (Var "x"))
         it "parses the example module" $ (parseNS . tokenize <$> B.readFile "test-resources/something.ohuac")
             `shouldReturn`
             Namespace (nsRefFromList ["some_ns"])
