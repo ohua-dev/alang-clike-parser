@@ -40,8 +40,6 @@ $sep = $white
     <0> {
         "("         { direct LParen }
         ")"         { direct RParen }
-        "["         { direct LBracket }
-        "]"         { direct RBracket }
         "{"         { direct LBrace }
         "}"         { direct RBrace }
 	"<"         { direct LAngle }

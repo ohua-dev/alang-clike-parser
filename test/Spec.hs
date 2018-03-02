@@ -23,8 +23,10 @@ main = hspec $ do
             lp "something(a, b, c)" `shouldBe` ("something" `Apply` "a" `Apply` "b" `Apply` "c")
         it "parses a let" $
             lp "{ let a = b; b }" `shouldBe` Let "a" "b" "b"
+        it "parses a let with destructuring" $
+            lp "{ let (a, b) = c; a }" `shouldBe` Let ["a", "b"] "c" "a"
         it "parses a lambda" $
-            lp "fn (a, [b, c]) { print(a); c }" `shouldBe` (Lambda "a" $ Lambda (Destructure ["b", "c"]) $ Let "_" ("print" `Apply` "a") "c")
+            lp "fn (a, (b, c)) { print(a); c }" `shouldBe` (Lambda "a" $ Lambda (Destructure ["b", "c"]) $ Let "_" ("print" `Apply` "a") "c")
         -- not sure this next test case is a good idea in a c-like language
         -- we may want operators at some point
         -- it "parses an identifier with strange symbols" $
@@ -86,7 +88,7 @@ main = hspec $ do
                 [ (nsRefFromList ["ohua","math"],["add","isZero"]) ]
                 [ ("square", Annotated (FunAnn [Immutable $ TyRef "int"] (Immutable $ TyRef "int")) $ Lambda "x" ("add" `Apply` "x" `Apply` "x"))
                 , ("algo1",
-                   Annotated (FunAnn [Mutable $ TyRef "T"] (Immutable $ TyRef "Bool")) $
+                   Annotated (FunAnn [Mutable $ TyRef "T"] (Immutable $ tupleConstructor `TyApp` TyRef "A" `TyApp` TyRef "Bool")) $
                    Lambda "someParam" $
                         Let "a" ("square" `Apply` "someParam") $
                         Let "coll0" ("ohua.lang/smap" `Apply` Lambda "i" ("square" `Apply` "i") `Apply` "coll") $

@@ -8,7 +8,7 @@ fn square (x : int) -> int {
 }
 
 // a line comment for test reasons
-fn algo1 (someParam : mut T) -> Bool {
+fn algo1 (someParam : mut T) -> (A, Bool) {
     let a = square(someParam);
 
 

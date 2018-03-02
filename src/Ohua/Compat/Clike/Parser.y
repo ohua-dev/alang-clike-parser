@@ -54,8 +54,6 @@ import qualified Ohua.ParseTools.Refs as Refs
     ','     { Comma }
     '('     { LParen }
     ')'     { RParen }
-    '['     { LBracket }
-    ']'     { RBracket }
     '{'     { LBrace }
     '}'     { RBrace }
     ':'     { Colon }
@@ -98,7 +96,7 @@ Exp
 
 Destruct 
     : id           { Direct $1 }
-    | '[' Vars ']' { Destructure $2 }
+    | '(' Vars ')' { Destructure $2 }
 
 Vars 
     : id ',' Vars   { $1 : $3 }
