@@ -24,6 +24,7 @@ import qualified Data.HashMap.Strict as HM
 import Data.Either
 import Data.Maybe
 import qualified Ohua.ParseTools.Refs as Refs
+import Ohua.ALang.Refs (mkTuple)
 
 }
 
@@ -93,6 +94,7 @@ Exp
            '{' Stmts '}'
       else '{' Stmts '}'                    { Refs.ifBuiltin `Apply` $3 `Apply` ignoreArgLambda $6 `Apply` ignoreArgLambda $10 }
     | '{' Stmts '}'                         { $2 }
+    | '(' Apply  ')'                        { $2 (Var $ Qual mkTuple) }
 
 Destruct 
     : id           { Direct $1 }

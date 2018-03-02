@@ -5,6 +5,7 @@
 import           Data.ByteString.Lazy     as B
 import           Ohua.ALang.Lang
 import           Ohua.ALang.NS
+import           Ohua.ALang.Refs          (mkTuple)
 import           Ohua.Compat.Clike.Lexer
 import           Ohua.Compat.Clike.Parser
 import           Ohua.Compat.Clike.Types
@@ -21,6 +22,8 @@ main = hspec $ do
     describe "parser and lexer" $ do
         it "parse an apply" $
             lp "something(a, b, c)" `shouldBe` ("something" `Apply` "a" `Apply` "b" `Apply` "c")
+        it "parses a tuple construction" $
+            lp "(a, b, c)" `shouldBe` (Var (Qual mkTuple) `Apply` "a" `Apply` "b" `Apply` "c")
         it "parses a let" $
             lp "{ let a = b; b }" `shouldBe` Let "a" "b" "b"
         it "parses a let with destructuring" $
