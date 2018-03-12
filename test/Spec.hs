@@ -6,7 +6,6 @@ import           Data.ByteString.Lazy     as B
 import           Ohua.ALang.Lang
 import           Ohua.ALang.NS
 import           Ohua.ALang.Refs          (mkTuple)
-import           Ohua.Compat.Clike.Lexer
 import           Ohua.Compat.Clike.Parser
 import           Ohua.Compat.Clike.Types
 import           Ohua.Types
@@ -15,7 +14,7 @@ import           Test.Hspec
 deriving instance Show a => Show (Namespace a)
 deriving instance Eq a => Eq (Namespace a)
 
-lp = parseExp . tokenize
+lp = parseExp
 
 main :: IO ()
 main = hspec $ do
@@ -38,6 +37,9 @@ main = hspec $ do
             lp "{ let a = t; let b = r; print(f); a }" `shouldBe` (Let "a" "t" $ Let "b" "r" $ Let "_" ("print" `Apply` "f") "a")
         it "parses a named fundef" $
             lp "{ fn a_fn (a) { a } b }" `shouldBe` (Let "a_fn" (Lambda "a" "a") "b")
+        it "parses a named fundef that returns a tuple" $
+            parseTLFunDef "fn f () { (a, b) }"
+            `shouldBe` ("f", Annotated (FunAnn [] (Immutable tupleConstructor)) (Lambda "_" $ Var (Qual mkTuple) `Apply` "a" `Apply` "b"))
         -- it "parses an if" $
         --     lp "if (add (x, y)) { fn a () { return b; } return a; } else { return c; }"
         --         `shouldBe`
@@ -60,7 +62,7 @@ main = hspec $ do
             lp "a (b/* ignore this */)" `shouldBe` ("a" `Apply` "b")
         it "ignores a block comment with newline preceding an expression" $ do
             lp "/* ignore this\n */ a" `shouldBe` "a"
-        it "parses a function with signature" $ (parseTLFunDef $ tokenize "fn func (x : int, y : Maybe<String>, z : T<B, a>) -> Q { x }")
+        it "parses a function with signature" $ (parseTLFunDef "fn func (x : int, y : Maybe<String>, z : T<B, a>) -> Q { x }")
           `shouldBe`
           ("func", Annotated (FunAnn [ Immutable $ TyRef "int"
                                      , Immutable $ TyRef "Maybe" `TyApp` TyRef "String"
@@ -70,7 +72,7 @@ main = hspec $ do
               $ Lambda "y"
               $ Lambda "z"
               $ Var "x")
-        it "parses mutable arguments" $ (parseTLFunDef $ tokenize "fn func (x : mut Object, y:mut O) -> Q { x }")
+        it "parses mutable arguments" $ (parseTLFunDef "fn func (x : mut Object, y:mut O) -> Q { x }")
           `shouldBe`
           ("func", Annotated (FunAnn [ Mutable $ TyRef "Object"
                                      , Mutable $ TyRef "O"
@@ -78,13 +80,13 @@ main = hspec $ do
                    $ Lambda "x"
                    $ Lambda "y"
                    $ Var "x")
-        it "parses no return as unit" $ (parseTLFunDef $ tokenize "fn f () { x }")
+        it "parses no return as unit" $ (parseTLFunDef "fn f () { x }")
           `shouldBe`
           ("f", Annotated (FunAnn [] (Immutable tupleConstructor)) $ Lambda "_" (Var "x"))
-        it "parses tuples in return types" $ (parseTLFunDef $ tokenize "fn func () -> (A, B) { x }")
+        it "parses tuples in return types" $ (parseTLFunDef "fn func () -> (A, B) { x }")
           `shouldBe`
           ("func", Annotated (FunAnn [] (Immutable (tupleConstructor `TyApp` TyRef "A" `TyApp` TyRef "B"))) $ Lambda "_" (Var "x"))
-        it "parses the example module" $ (parseNS . tokenize <$> B.readFile "test-resources/something.ohuac")
+        it "parses the example module" $ (parseNS <$> B.readFile "test-resources/something.ohuac")
             `shouldReturn`
             Namespace (nsRefFromList ["some_ns"])
                 [ (nsRefFromList ["some","module"], ["a"]) ]

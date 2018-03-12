@@ -22,6 +22,7 @@ library:
   - unordered-containers
   - monad-loops
   - recursion-schemes
+  - mtl
   build-tools:
   - alex
   - happy
