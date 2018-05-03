@@ -88,9 +88,9 @@ main = hspec $ do
           ("func", Annotated (FunAnn [] (Immutable (tupleConstructor `TyApp` TyRef "A" `TyApp` TyRef "B"))) $ Lambda "_" (Var "x"))
         it "parses the example module" $ (parseNS <$> B.readFile "test-resources/something.ohuac")
             `shouldReturn`
-            Namespace (nsRefFromList ["some_ns"])
-                [ (nsRefFromList ["some","module"], ["a"]) ]
-                [ (nsRefFromList ["ohua","math"],["add","isZero"]) ]
+            Namespace (["some_ns"])
+                [ (["some","module"], ["a"]) ]
+                [ (["ohua","math"],["add","isZero"]) ]
                 [ ("square", Annotated (FunAnn [Immutable $ TyRef "int"] (Immutable $ TyRef "int")) $ Lambda "x" ("add" `Apply` "x" `Apply` "x"))
                 , ("algo1",
                    Annotated (FunAnn [Mutable $ TyRef "T"] (Immutable $ tupleConstructor `TyApp` TyRef "A" `TyApp` TyRef "Bool")) $
