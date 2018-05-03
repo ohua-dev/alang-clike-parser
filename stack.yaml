@@ -4,7 +4,7 @@ packages:
 - .
 - location:
     git: https://github.com/ohua-dev/ohua-core
-    commit: d3239804c2ca7844fc77037c95f585c558643dc2
+    commit: 0205bb761d16c1137b025594d7da4ed4051d6faf
   extra-dep: true
 extra-deps: []
 resolver: lts-9.6

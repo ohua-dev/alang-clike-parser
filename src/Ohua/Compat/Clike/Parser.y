@@ -247,13 +247,13 @@ ignoreArgLet :: Expr SomeBinding -> Expr SomeBinding -> Expr SomeBinding
 ignoreArgLet = Let (Direct "_")
 
 bndsToNSRef :: [Binding] -> NSRef
-bndsToNSRef = nsRefFromList
+bndsToNSRef = makeThrow
 
 
 toQualBnd :: [Binding] -> QualifiedBinding
 toQualBnd [] = error "empty id"
 toQualBnd [x] = error "qual bnd with only one component"
-toQualBnd xs = QualifiedBinding (nsRefFromList $ init xs) (last xs)
+toQualBnd xs = QualifiedBinding (bndsToNSRef $ init xs) (last xs)
 
 runPM :: PM a -> Input -> a
 runPM ac bs = either error id $ runAlex bs ac

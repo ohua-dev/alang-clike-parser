@@ -151,7 +151,7 @@ instance Show Lexeme where
     QualId bnds -> "qualified identifier '" ++ intercalate "::" (map bndToString bnds) ++ "'"
     EOF -> "end of file"
     where
-      bndToString = Str.toString . unBinding
+      bndToString = Str.toString . unwrap
     
 
 direct tok _ _ = pure tok
@@ -161,11 +161,11 @@ tokenOverInputStr f = withMatchedInput (pure . f)
 withMatchedInput f (_, _, input, _) len = f (BS.take len input)
 
 convertId :: BS.ByteString -> Binding
-convertId = Binding . Str.fromString . BS.unpack
+convertId = makeThrow . Str.fromString . BS.unpack
 
 
 toQualId :: BS.ByteString -> [Binding]
-toQualId = map (Binding . Str.fromString . B.unpack) . splitOn "::" . BS.toStrict
+toQualId = map (makeThrow . Str.fromString . B.unpack) . splitOn "::" . BS.toStrict
 
 splitOn str = ana $ \bs ->
   case B.breakSubstring str bs of
