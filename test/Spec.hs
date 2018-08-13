@@ -2,6 +2,8 @@
 {-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE StandaloneDeriving #-}
 
+import Protolude
+
 import           Data.ByteString.Lazy     as B
 import           Ohua.ALang.Lang
 import           Ohua.ALang.NS
@@ -103,4 +105,3 @@ main = hspec $ do
                             `Apply` Lambda "_" "a"))
                 , ("main", Annotated (FunAnn [Immutable $ TyRef "SomeType"] (Immutable tupleConstructor)) $ Lambda "param"  ("algo0" `Apply` "param"))
                 ]
-

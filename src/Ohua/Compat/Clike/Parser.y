@@ -15,21 +15,20 @@ module Ohua.Compat.Clike.Parser
     , Namespace(..)
     ) where
 
+import Protolude
+
 import Ohua.Compat.Clike.Lexer
 import Ohua.Compat.Clike.Types
 import Ohua.ALang.Lang
 import Ohua.Types
 import Ohua.ALang.NS
 import qualified Data.HashMap.Strict as HM
-import Data.Either
-import Data.Maybe
 import qualified Ohua.ParseTools.Refs as Refs
 import Ohua.ALang.Refs (mkTuple)
-import Control.Monad.Reader
 import qualified Data.ByteString.Lazy as BS
-import Control.Monad.Trans
-import Control.Monad.Error.Class
 
+import Unsafe
+import Prelude (String, (!!), error)
 }
 
 
@@ -58,7 +57,7 @@ import Control.Monad.Error.Class
     else    { KWElse }
     for     { KWFor }
     in      { KWIn }
-    mut     { KWMut } 
+    mut     { KWMut }
     ','     { Comma }
     '('     { LParen }
     ')'     { RParen }
@@ -124,7 +123,7 @@ Vars
 Apply
     :: { RawExpressionProducer }
     : ApplyParams   { $1 }
-    |               { id }
+    |               { identity }
 
 ApplyParams
     :: { RawExpressionProducer }
@@ -158,7 +157,7 @@ TLFunDef
     : fn id '(' AnnParams ')' FunRetAnn FunBody { let (types, e) = $4 in ($2, Annotated (FunAnn types $ Immutable $6) (e $7)) }
 
 AnnParams
-    :: { ([RustTyExpr], RawExpressionProducer) } 
+    :: { ([RustTyExpr], RawExpressionProducer) }
     : HasAnnParams { $1 }
     |              { ([], ignoreArgLambda) }
 
@@ -170,7 +169,7 @@ HasAnnParams
 InputTyAnn
     :: { RustTyExpr }
     : mut TyExpr { Mutable $2 }
-    | TyExpr     { Immutable $1 } 
+    | TyExpr     { Immutable $1 }
 
 FunRetAnn
     :: { TyExpr SomeBinding }
@@ -239,7 +238,7 @@ type FunDef = ( Binding
               , Annotated (FunAnn RustTyExpr) (Expr SomeBinding))
 
 type Def = Either (Either [ReqDef] [ReqDef]) FunDef
-                  
+
 
 ignoreArgLambda :: Expr SomeBinding -> Expr SomeBinding
 ignoreArgLambda = Lambda (Direct "_")
@@ -251,12 +250,12 @@ bndsToNSRef = makeThrow
 
 
 toQualBnd :: [Binding] -> QualifiedBinding
-toQualBnd [] = error "empty id"
-toQualBnd [x] = error "qual bnd with only one component"
-toQualBnd xs = QualifiedBinding (bndsToNSRef $ init xs) (last xs)
+toQualBnd [] = panic "empty id"
+toQualBnd [x] = panic "qual bnd with only one component"
+toQualBnd xs = QualifiedBinding (bndsToNSRef $ unsafeInit xs) (unsafeLast xs)
 
 runPM :: PM a -> Input -> a
-runPM ac bs = either error id $ runAlex bs ac
+runPM ac bs = either (panic . toS) identity $ runAlex bs ac
 
 lexer :: (Lexeme -> PM a) -> PM a
 lexer cont = nextToken >>= cont
@@ -279,7 +278,7 @@ parseTyAnn = runPM parseTyAnnM
 parseError :: Lexeme -> PM a
 parseError token = do
   (line, col) <- getLexerPos
-  throwError $ "Parse error at line " ++ show line ++ ", column " ++ show col ++ ", on token " ++ show token
+  throwError $ "Parse error at line " <> show line <> ", column " <> show col <> ", on token " <> show token
 
 
 -- | Parse a stream of tokens into a namespace
