@@ -1,5 +1,5 @@
 name: alang-clike-parser
-version: '0.1.0.0'
+version: '0.1.0'
 category: Devel
 author: Justus Adam
 maintainer: dev@justus.science
@@ -8,6 +8,43 @@ license: OtherLicense
 github: ohua-dev/alang-clike-parser
 extra-source-files:
 - README.md
+ghc-options:
+- -Wall
+- -Wcompat
+- -Wincomplete-record-updates
+- -Wincomplete-uni-patterns
+- -Wredundant-constraints
+default-extensions:
+- OverloadedStrings
+- OverloadedLists
+- MultiParamTypeClasses
+- FunctionalDependencies
+- TypeFamilies
+- GADTs
+- FlexibleContexts
+- FlexibleInstances
+- TypeSynonymInstances
+- LambdaCase
+- TupleSections
+- BangPatterns
+- ExplicitForAll
+- ScopedTypeVariables
+- DefaultSignatures
+- DeriveFunctor
+- DeriveFoldable
+- DeriveTraversable
+- DeriveGeneric
+- PatternSynonyms
+- NamedFieldPuns
+- RecordWildCards
+- ConstraintKinds
+- StandaloneDeriving
+- NoImplicitPrelude
+dependencies:
+- base >=4.7 && <5
+- bytestring
+- protolude
+- ohua-core
 library:
   source-dirs: src
   exposed-modules:
@@ -15,14 +52,10 @@ library:
   - Ohua.Compat.Clike.Parser
   - Ohua.Compat.Clike.Types
   dependencies:
-  - base >=4.7 && <5
-  - ohua-core
-  - bytestring
   - array
   - unordered-containers
   - monad-loops
   - recursion-schemes
-  - mtl
   build-tools:
   - alex
   - happy
@@ -35,8 +68,5 @@ tests:
     - -rtsopts
     - -with-rtsopts=-N
     dependencies:
-    - base
     - alang-clike-parser
     - hspec
-    - ohua-core
-    - bytestring

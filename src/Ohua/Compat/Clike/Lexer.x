@@ -8,27 +8,21 @@
 -- Stability   : experimental
 
 -- This source code is licensed under the terms described in the associated LICENSE.TXT file
-{-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# OPTIONS_GHC -funbox-strict-fields #-}
+{-# OPTIONS_GHC -funbox-strict-fields -fno-warn-deprecations #-}
 module Ohua.Compat.Clike.Lexer
   ( tokenize, Lexeme(..), alexMonadScan, runAlex, Alex, getLexerPos
   )
   where
 
+import Protolude hiding (check)
+
 import qualified Data.ByteString.Lazy.Char8 as BS
 import qualified Data.ByteString.Char8 as B
 import Ohua.Types
-import Prelude hiding (lex)
-import Control.Monad.Loops
-import qualified Ohua.Util.Str as Str
 import Data.Functor.Foldable
 import Data.List (intercalate)
-import Control.Monad.Error.Class
+import qualified GHC.Show
+import Prelude (String)
 }
 
 %wrapper "monad-bytestring"
@@ -50,13 +44,13 @@ $sep = $white
         ")"         { direct RParen }
         "{"         { direct LBrace }
         "}"         { direct RBrace }
-	"<"         { direct LAngle }
-	">"         { direct RAngle }
+	      "<"         { direct LAngle }
+	      ">"         { direct RAngle }
         "="         { direct OpEq }
         ","         { direct Comma }
-	":"         { direct Colon }
+	      ":"         { direct Colon }
         ";"         { direct Semicolon }
-	"->" 	    { direct RArrow }
+	      "->" 	      { direct RArrow }
         "fn"        { direct KWFn }
         "if"        { direct KWIf }
         "else"      { direct KWElse }
@@ -67,7 +61,7 @@ $sep = $white
         "algo"      { direct KWAlgo }
         "ns"        { direct KWNS }
         "let"       { direct KWLet }
-	"mut" 	    { direct KWMut }
+	      "mut" 	    { direct KWMut }
         @qualid     { tokenOverInputStr $ QualId . toQualId }
         @id         { tokenOverInputStr $ UnqualId . convertId }
         $sep        ;
@@ -87,7 +81,7 @@ $sep = $white
         \n ;
     }
 
-    $reserved { withMatchedInput $ \s -> alexError $ "Reserved symbol: " ++ BS.unpack s }
+    $reserved { withMatchedInput $ \s -> alexError $ "Reserved symbol: " <> toS s }
 
 
 {
@@ -147,12 +141,12 @@ instance Show Lexeme where
     KWSf -> "'sf'"
     KWNS -> "'ns'"
     KWMut -> "'mut'"
-    UnqualId bnd -> "unqualified identifier '" ++ bndToString bnd ++ "'"
-    QualId bnds -> "qualified identifier '" ++ intercalate "::" (map bndToString bnds) ++ "'"
+    UnqualId bnd -> "unqualified identifier '" <> bndToString bnd <> "'"
+    QualId bnds -> "qualified identifier '" <> intercalate "::" (map bndToString bnds) <> "'"
     EOF -> "end of file"
     where
-      bndToString = Str.toString . unwrap
-    
+      bndToString = toS . unwrap
+
 
 direct tok _ _ = pure tok
 
@@ -161,11 +155,11 @@ tokenOverInputStr f = withMatchedInput (pure . f)
 withMatchedInput f (_, _, input, _) len = f (BS.take len input)
 
 convertId :: BS.ByteString -> Binding
-convertId = makeThrow . Str.fromString . BS.unpack
+convertId = makeThrow . toS
 
 
 toQualId :: BS.ByteString -> [Binding]
-toQualId = map (makeThrow . Str.fromString . B.unpack) . splitOn "::" . BS.toStrict
+toQualId = map (makeThrow . toS) . splitOn "::" . toS
 
 splitOn str = ana $ \bs ->
   case B.breakSubstring str bs of
@@ -179,7 +173,7 @@ getLexerPos = Alex $ \s@AlexState{ alex_pos=AlexPn _ line col} -> pure (s, (line
 
 -- | Tokenize a lazy bytestring into lexemes
 tokenize :: BS.ByteString -> [Lexeme]
-tokenize bs = either error id $ runAlex bs $
+tokenize bs = either (panic . toS) identity $ runAlex bs $
   let go = alexMonadScan >>= \case EOF -> pure []; tok -> (tok:) <$> go
   in go
 

@@ -1,9 +1,8 @@
-{-# LANGUAGE OverloadedLists   #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms   #-}
 module Ohua.Compat.Clike.Types where
 
-import           Ohua.Types
+import Protolude
+
+import Ohua.Types
 
 
 type Mutability = Bool
