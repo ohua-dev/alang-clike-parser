@@ -8,13 +8,13 @@
 -- Stability   : experimental
 
 -- This source code is licensed under the terms described in the associated LICENSE.TXT file
-{-# OPTIONS_GHC -funbox-strict-fields -fno-warn-deprecations #-}
+{-# OPTIONS_GHC -funbox-strict-fields -fno-warn-unused-imports #-}
 module Ohua.Compat.Clike.Lexer
   ( tokenize, Lexeme(..), alexMonadScan, runAlex, Alex, getLexerPos
   )
   where
 
-import Protolude hiding (check)
+import Protolude hiding (check, undefined)
 
 import qualified Data.ByteString.Lazy.Char8 as BS
 import qualified Data.ByteString.Char8 as B
@@ -22,7 +22,8 @@ import Ohua.Types
 import Data.Functor.Foldable
 import Data.List (intercalate)
 import qualified GHC.Show
-import Prelude (String)
+
+import Prelude (String, undefined)
 }
 
 %wrapper "monad-bytestring"
