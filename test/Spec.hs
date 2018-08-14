@@ -4,22 +4,23 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 import Protolude
 
-import           Data.ByteString.Lazy     as B
-import           Ohua.ALang.Lang
-import           Ohua.ALang.NS
-import           Ohua.ALang.Refs          (mkTuple)
-import           Ohua.Compat.Clike.Parser
-import           Ohua.Compat.Clike.Types
-import           Ohua.Types
-import           Test.Hspec
+import qualified Data.ByteString.Lazy as B
+import Ohua.ALang.Lang
+import Ohua.ALang.NS
+import Ohua.ALang.Refs (mkTuple)
+import Ohua.Compat.Clike.Parser
+import Ohua.Compat.Clike.Types
+import Ohua.Types
+import Test.Hspec
 
 deriving instance Show a => Show (Namespace a)
 deriving instance Eq a => Eq (Namespace a)
 
+lp :: LByteString -> Expr SomeBinding
 lp = parseExp
 
 main :: IO ()
-main = hspec $ do
+main = hspec $
     describe "parser and lexer" $ do
         it "parse an apply" $
             lp "something(a, b, c)" `shouldBe` ("something" `Apply` "a" `Apply` "b" `Apply` "c")
