@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedLists    #-}
 {-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE StandaloneDeriving #-}
-
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 import Protolude
 
 import           Data.ByteString.Lazy     as B
