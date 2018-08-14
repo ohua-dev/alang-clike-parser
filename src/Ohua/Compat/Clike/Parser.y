@@ -10,6 +10,7 @@
 -- This source code is licensed under the terms described in the associated LICENSE.TXT file
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE LambdaCase #-}
+{-# OPTIONS_GHC -fno-warn-unused-imports #-}
 module Ohua.Compat.Clike.Parser
     ( parseNS, parseExp, parseTLFunDef
     , Namespace(..)
