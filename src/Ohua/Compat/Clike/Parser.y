@@ -22,6 +22,7 @@ import Ohua.Compat.Clike.Types
 import Ohua.ALang.Lang
 import Ohua.Types
 import Ohua.ALang.NS
+import Ohua.Unit
 import qualified Data.HashMap.Strict as HM
 import qualified Ohua.ParseTools.Refs as Refs
 import Ohua.ALang.Refs (mkTuple)
@@ -123,7 +124,7 @@ Vars
 Apply
     :: { RawExpressionProducer }
     : ApplyParams   { $1 }
-    |               { identity }
+    |               { (`Apply` someUnitExpr) }
 
 ApplyParams
     :: { RawExpressionProducer }

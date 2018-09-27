@@ -8,6 +8,7 @@ import qualified Data.ByteString.Lazy as B
 import Ohua.ALang.Lang
 import Ohua.ALang.NS
 import Ohua.ALang.Refs (mkTuple)
+import Ohua.Unit
 import Ohua.Compat.Clike.Parser
 import Ohua.Compat.Clike.Types
 import Ohua.Types
@@ -46,25 +47,31 @@ main = hspec $
         -- it "parses an if" $
         --     lp "if (add (x, y)) { fn a () { return b; } return a; } else { return c; }"
         --         `shouldBe`
-        it "ignores a line comment preceding an expression" $
-            lp "// some content\na" `shouldBe` "a"
-        it "ignores consecutive line comments" $
-            lp "// some content\n      //something\na" `shouldBe` "a"
-        it "ignores a line comment following an expression" $
-            lp "a // some content" `shouldBe` "a"
-        it "ignores a line comment between an expression" $ do
-            lp "a(// some content\n b)" `shouldBe` ("a" `Apply` "b")
-            lp "a// some content\n( b)" `shouldBe` ("a" `Apply` "b")
-        it "ignores a block comment preceding an expression" $ do
-            lp "/* ignore this */ a" `shouldBe` "a"
-        it "ignores a block comment following an expression" $ do
-            lp "a /* ignore this */" `shouldBe` "a"
-        it "ignores a block comment in between an expression" $ do
-            lp "a /* ignore this */(b)" `shouldBe` ("a" `Apply` "b")
-            lp "a (/* ignore this */b)" `shouldBe` ("a" `Apply` "b")
-            lp "a (b/* ignore this */)" `shouldBe` ("a" `Apply` "b")
-        it "ignores a block comment with newline preceding an expression" $ do
-            lp "/* ignore this\n */ a" `shouldBe` "a"
+        describe "comments" $ do
+            it "ignores a line comment preceding an expression" $
+                lp "// some content\na" `shouldBe` "a"
+            it "ignores consecutive line comments" $
+                lp "// some content\n      //something\na" `shouldBe` "a"
+            it "ignores a line comment following an expression" $
+                lp "a // some content" `shouldBe` "a"
+            it "ignores a line comment between an expression" $ do
+                lp "a(// some content\n b)" `shouldBe` ("a" `Apply` "b")
+                lp "a// some content\n( b)" `shouldBe` ("a" `Apply` "b")
+            it "ignores a block comment preceding an expression" $ do
+                lp "/* ignore this */ a" `shouldBe` "a"
+            it "ignores a block comment following an expression" $ do
+                lp "a /* ignore this */" `shouldBe` "a"
+            it "ignores a block comment in between an expression" $ do
+                lp "a /* ignore this */(b)" `shouldBe` ("a" `Apply` "b")
+                lp "a (/* ignore this */b)" `shouldBe` ("a" `Apply` "b")
+                lp "a (b/* ignore this */)" `shouldBe` ("a" `Apply` "b")
+            it "ignores a block comment with newline preceding an expression" $ do
+                lp "/* ignore this\n */ a" `shouldBe` "a"
+        describe "functions with no inputs" $ do
+            it "parses a simple call" $
+                lp "a()" `shouldBe` ("a" `Apply` someUnitExpr)
+            it "parses chains" $
+                lp "a(b())" `shouldBe` ("a" `Apply` ("b" `Apply` someUnitExpr))
         it "parses a function with signature" $ (parseTLFunDef "fn func (x : int, y : Maybe<String>, z : T<B, a>) -> Q { x }")
           `shouldBe`
           ("func", Annotated (FunAnn [ Immutable $ TyRef "int"
