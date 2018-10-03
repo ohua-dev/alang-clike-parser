@@ -1,5 +1,7 @@
 # Parses a C/Rust like language into ALang
 
+[![Build Status](https://travis-ci.org/ohua-dev/alang-clike-parser.svg?branch=master)](https://travis-ci.org/ohua-dev/alang-clike-parser)
+
 An example of a standalone Ohua module in the C/Rust like syntax.
 
 ```rs
@@ -23,7 +25,7 @@ fn algo1 (someParam) {
     } else {
         a
     }
-    
+
 }
 
 fn main (param) {
