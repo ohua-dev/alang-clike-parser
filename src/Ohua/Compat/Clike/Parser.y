@@ -15,7 +15,7 @@ module Ohua.Compat.Clike.Parser
     , Namespace(..)
     ) where
 
-import Protolude
+import Ohua.Prelude
 
 import Ohua.Compat.Clike.Lexer
 import Ohua.Compat.Clike.Types
@@ -28,8 +28,8 @@ import qualified Ohua.ParseTools.Refs as Refs
 import Ohua.ALang.Refs (mkTuple)
 import qualified Data.ByteString.Lazy as BS
 
-import Unsafe
-import Prelude (String, (!!), error)
+--import Unsafe
+import Prelude ((!!))
 }
 
 
@@ -251,12 +251,14 @@ bndsToNSRef = makeThrow
 
 
 toQualBnd :: [Binding] -> QualifiedBinding
-toQualBnd [] = panic "empty id"
-toQualBnd [x] = panic "qual bnd with only one component"
-toQualBnd xs = QualifiedBinding (bndsToNSRef $ unsafeInit xs) (unsafeLast xs)
+toQualBnd [] = error "empty id"
+toQualBnd [x] = error "qual bnd with only one component"
+toQualBnd (x:xs) = QualifiedBinding (bndsToNSRef $ init safeList) (last safeList)
+  where
+    safeList = x :| xs
 
 runPM :: PM a -> Input -> a
-runPM ac bs = either (panic . toS) identity $ runAlex bs ac
+runPM ac bs = either (error . toText) identity $ runAlex bs ac
 
 lexer :: (Lexeme -> PM a) -> PM a
 lexer cont = nextToken >>= cont

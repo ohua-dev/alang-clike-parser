@@ -43,7 +43,6 @@ default-extensions:
 dependencies:
 - base >=4.7 && <5
 - bytestring
-- protolude
 - ohua-core
 library:
   source-dirs: src
@@ -54,8 +53,8 @@ library:
   dependencies:
   - array
   - unordered-containers
-  - monad-loops
   - recursion-schemes
+  - text
   build-tools:
   - alex
   - happy

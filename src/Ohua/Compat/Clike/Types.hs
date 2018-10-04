@@ -1,8 +1,6 @@
 module Ohua.Compat.Clike.Types where
 
-import Protolude
-
-import Ohua.Types
+import Ohua.Prelude
 
 
 type Mutability = Bool

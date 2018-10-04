@@ -14,14 +14,14 @@ module Ohua.Compat.Clike.Lexer
   )
   where
 
-import Protolude hiding (check, undefined)
+import Ohua.Prelude hiding (undefined)
 
 import qualified Data.ByteString.Lazy.Char8 as BS
 import qualified Data.ByteString.Char8 as B
-import Ohua.Types
 import Data.Functor.Foldable
 import Data.List (intercalate)
 import qualified GHC.Show
+import Data.Text (splitOn)
 
 import Prelude (String, undefined)
 }
@@ -82,7 +82,7 @@ $sep = $white
         \n ;
     }
 
-    $reserved { withMatchedInput $ \s -> alexError $ "Reserved symbol: " <> toS s }
+    $reserved { withMatchedInput $ \s -> alexError $ "Reserved symbol: " <> BS.unpack s }
 
 
 {
@@ -146,7 +146,7 @@ instance Show Lexeme where
     QualId bnds -> "qualified identifier '" <> intercalate "::" (map bndToString bnds) <> "'"
     EOF -> "end of file"
     where
-      bndToString = toS . unwrap
+      bndToString = toString . unwrap
 
 
 direct tok _ _ = pure tok
@@ -156,16 +156,11 @@ tokenOverInputStr f = withMatchedInput (pure . f)
 withMatchedInput f (_, _, input, _) len = f (BS.take len input)
 
 convertId :: BS.ByteString -> Binding
-convertId = makeThrow . toS
+convertId = makeThrow . decodeUtf8
 
 
 toQualId :: BS.ByteString -> [Binding]
-toQualId = map (makeThrow . toS) . splitOn "::" . toS
-
-splitOn str = ana $ \bs ->
-  case B.breakSubstring str bs of
-    (b1, b2) | B.null b1 && B.null b2 -> Nil
-             | otherwise -> Cons b1 (B.drop (B.length str) b2)
+toQualId = map makeThrow . splitOn "::" . decodeUtf8
 
 alexEOF = pure EOF
 
@@ -174,7 +169,7 @@ getLexerPos = Alex $ \s@AlexState{ alex_pos=AlexPn _ line col} -> pure (s, (line
 
 -- | Tokenize a lazy bytestring into lexemes
 tokenize :: BS.ByteString -> [Lexeme]
-tokenize bs = either (panic . toS) identity $ runAlex bs $
+tokenize bs = either (error . toText) identity $ runAlex bs $
   let go = alexMonadScan >>= \case EOF -> pure []; tok -> (tok:) <$> go
   in go
 

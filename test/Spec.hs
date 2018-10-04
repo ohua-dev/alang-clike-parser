@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-import Protolude
+import Ohua.Prelude
 
 import qualified Data.ByteString.Lazy as B
 import Ohua.ALang.Lang
@@ -11,7 +11,6 @@ import Ohua.ALang.Refs (mkTuple)
 import Ohua.Unit
 import Ohua.Compat.Clike.Parser
 import Ohua.Compat.Clike.Types
-import Ohua.Types
 import Test.Hspec
 
 deriving instance Show a => Show (Namespace a)
