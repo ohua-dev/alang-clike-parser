@@ -289,7 +289,10 @@ parseNS :: Input -> Namespace (Annotated (FunAnn RustTyExpr) (Expr SomeBinding))
 parseNS = runPM parseNSRawM
 
 mkNS :: NSRef -> [Def] -> Namespace (Annotated (FunAnn RustTyExpr) (Expr SomeBinding))
-mkNS name defs = Namespace name (concat algoRequires) (concat sfRequires) fundefs
+mkNS name defs = (emptyNamespace name :: Namespace ())
+     & algoImports .~ concat algoRequires
+     & sfImports .~ concat sfRequires
+     & decls .~ fundefs
   where
     (requireList, fundefList) = partitionEithers defs
     (sfRequires, algoRequires) = partitionEithers requireList
