@@ -33,9 +33,10 @@ $sym  = [_]
 $numerical = [0-9]
 $reserved = [@\#:\-\$]
 $idchar = [$numerical $sym $char]
+$idstartchar = [$char $sym]
 $sep = $white
 
-@id = $char $idchar*
+@id = $idstartchar $idchar*
 @qualid = @id (:: @id)+
 
 :-
@@ -49,9 +50,11 @@ $sep = $white
 	      ">"         { direct RAngle }
         "="         { direct OpEq }
         ","         { direct Comma }
+        "::"        { direct DoubleColon }
 	      ":"         { direct Colon }
         ";"         { direct Semicolon }
 	      "->" 	      { direct RArrow }
+        "|"         { direct Pipe }
         "fn"        { direct KWFn }
         "if"        { direct KWIf }
         "else"      { direct KWElse }
@@ -63,8 +66,8 @@ $sep = $white
         "ns"        { direct KWNS }
         "let"       { direct KWLet }
 	      "mut" 	    { direct KWMut }
-        @qualid     { tokenOverInputStr $ QualId . toQualId }
-        @id         { tokenOverInputStr $ UnqualId . convertId }
+        "with"      { direct KWWith }
+        @id         { tokenOverInputStr $ Id . convertId }
         $sep        ;
 
         "/*" { begin blockComment }
@@ -96,11 +99,13 @@ data Lexeme
     | RBrace -- ^ @}@
     | OpEq -- ^ @=@
     | Comma -- ^ @,@
+    | DoubleColon -- ^ @::@
     | Colon -- ^ @:@
     | Semicolon -- ^ @;@
     | LAngle -- ^ @<@
     | RAngle -- ^ @>@
     | RArrow -- ^ @->@
+    | Pipe
     | KWLet -- ^ keyword @let@
     | KWIf -- ^ keyword @if@
     | KWElse -- ^ keyword @else@
@@ -112,8 +117,8 @@ data Lexeme
     | KWSf -- ^ keyword @sf@
     | KWNS -- ^ keyword @ns@ (namespace)
     | KWMut -- ^ keyword @mut@
-    | UnqualId !Binding
-    | QualId ![Binding] -- ^ an identifier
+    | KWWith
+    | Id !Binding
     | EOF
 
 instance Show Lexeme where
@@ -126,8 +131,10 @@ instance Show Lexeme where
     RBrace -> "'}'"
     OpEq -> "'='"
     Comma -> "','"
+    DoubleColon -> "'::'"
     Colon -> "':'"
     Semicolon -> "';'"
+    Pipe -> "'|'"
     LAngle -> "'<'"
     RAngle -> "'>'"
     RArrow -> "'->'"
@@ -142,8 +149,8 @@ instance Show Lexeme where
     KWSf -> "'sf'"
     KWNS -> "'ns'"
     KWMut -> "'mut'"
-    UnqualId bnd -> "unqualified identifier '" <> bndToString bnd <> "'"
-    QualId bnds -> "qualified identifier '" <> intercalate "::" (map bndToString bnds) <> "'"
+    KWWith -> "'with'"
+    Id bnd -> "id '" <> bndToString bnd <> "'"
     EOF -> "end of file"
     where
       bndToString = toString . unwrap
@@ -158,9 +165,6 @@ withMatchedInput f (_, _, input, _) len = f (BS.take len input)
 convertId :: BS.ByteString -> Binding
 convertId = makeThrow . decodeUtf8
 
-
-toQualId :: BS.ByteString -> [Binding]
-toQualId = map makeThrow . splitOn "::" . decodeUtf8
 
 alexEOF = pure EOF
 

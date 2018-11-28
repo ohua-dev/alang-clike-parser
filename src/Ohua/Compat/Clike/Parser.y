@@ -13,19 +13,17 @@
 module Ohua.Compat.Clike.Parser
     ( parseNS, parseExp, parseTLFunDef
     , Namespace(..)
+    , Algo(..)
     ) where
 
 import Ohua.Prelude
 
 import Ohua.Compat.Clike.Lexer
 import Ohua.Compat.Clike.Types
-import Ohua.ALang.Lang
+import Ohua.Frontend.Lang
 import Ohua.Types
-import Ohua.ALang.NS
-import Ohua.Unit
+import Ohua.Frontend.NS
 import qualified Data.HashMap.Strict as HM
-import qualified Ohua.ParseTools.Refs as Refs
-import Ohua.ALang.Refs (mkTuple)
 import qualified Data.ByteString.Lazy as BS
 
 --import Unsafe
@@ -44,8 +42,7 @@ import Prelude ((!!))
 
 %token
 
-    id      { UnqualId $$ }
-    qualid  { QualId $$ }
+    id      { Id $$ }
 
     '='     { OpEq }
     fn      { KWFn }
@@ -59,169 +56,163 @@ import Prelude ((!!))
     for     { KWFor }
     in      { KWIn }
     mut     { KWMut }
+    with    { KWWith }
     ','     { Comma }
     '('     { LParen }
     ')'     { RParen }
     '{'     { LBrace }
     '}'     { RBrace }
+    '::'    { DoubleColon }
     ':'     { Colon }
     ';'     { Semicolon }
     '<'     { LAngle }
     '>'     { RAngle }
     '->'    { RArrow }
+    '|'     { Pipe }
 
 %%
 
+many1 (p)
+    : p many(p) { $1 :| $2 }
+
+many (p)
+    : p many(p)  { $1 : $2 }
+    |            { [] }
+
+many_sep1(p, sep)
+    : p sep many_sep1(p, sep) { let x :| xs = $3 in $1 :| x:xs }
+    | p                       { $1 :| [] }
+
+many_sep(p, sep)
+    : many_sep1(p, sep) { toList $1 }
+    |                   { [] }
+
+braces(p)
+    : '{' p '}' { $2 }
+
+parens(p)
+    : '(' p ')' { $2 }
+
+opt(p)
+    : p { Just $1 }
+    |   { Nothing }
+
+or(a, b)
+    : a { Left $1 }
+    | b { Right $1 }
+
 QualId
-    :: { [Binding] }
-    : id     { [$1] }
-    | qualid { $1 }
+    :: { NonEmpty Binding }
+    : many_sep1(id, '::') { $1 }
 
 SomeId
-    :: { SomeBinding }
-    : id     { Unqual $1 }
-    | qualid { Qual (toQualBnd $1) }
+    :: { Expr }
+    : QualId { case $1 of
+                   x:|[] -> VarE x
+                   xs -> LitE $ FunRefLit $ FunRef (toQualBnd $1) Nothing }
+
+-- The following three rules are the complicated machinery that enables void
+-- functions. This handles the termination cases for blocks. This can either be
+-- an expression (to be returned), or nothing, in which case we return unit
 
 Stmts
-    :: { RawExpression }
-    : NoSemStmt Stmts   { $1 $2 }
-    | StmtSem ';' Stmts { $1 $3 }
-    | Exp               { $1 }
+    : let Pat '=' Exp ';' Stmts { LetE $2 $4 $6 }
+    | Exp ContStmts0 { $2 $1 }
 
--- Statements that do not require remicolons
-NoSemStmt
-    :: { RawExpressionProducer }
-    : NamedFunDef           { let (name, fun) = $1 in Let (Direct name) fun }
+ContStmts0
+    : ';' ContStmts1 { flip StmtE $2 }
+    |                { id }
 
--- Statments that do require semicolons
+ContStmts1
+    : Stmts { $1 }
+    |       { LitE UnitLit }
+
+Block
+    :: { Expr }
+    : braces(Stmts) { $1 }
+
 StmtSem
-    :: { RawExpressionProducer }
-    : Exp                   { ignoreArgLet $1 }
-    | let Destruct '=' Exp  { Let $2 $4 }
+    :: { Either Expr (Pat, Expr) }
+    : Exp                   { Left $1 }
+    | let Pat '=' Exp       { Right ($2, $4) }
+
+SimpleExp :: { RawExpression }
+    : parens(many_sep(Exp, ',')) { case $1 of
+                                       [] -> LitE UnitLit
+                                       [x] -> x
+                                       xs -> TupE xs }
+    | Block                                 { $1 }
+    | SomeId                                { $1 }
 
 Exp
     :: { RawExpression }
-    : fn FunDef                             { $2 }
-    | SomeId '(' Apply ')'                  { $3 (Var $1) }
-    | SomeId                                { Var $1 }
-    | for Destruct in Exp '{' Stmts '}'     { Refs.smapBuiltin `Apply` Lambda $2 $6 `Apply` $4 }
-    | if '(' Exp ')'
-           '{' Stmts '}'
-      else '{' Stmts '}'                    { Refs.ifBuiltin `Apply` $3 `Apply` ignoreArgLambda $6 `Apply` ignoreArgLambda $10 }
-    | '{' Stmts '}'                         { $2 }
-    | '(' Apply  ')'                        { $2 (Var $ Qual mkTuple) }
+    : '|' many_sep(Pat, ',') '|' SimpleExp  { LamE $2 $4 }
+    | SimpleExp parens(many_sep(Exp, ','))  { $1 `AppE` $2 }
+    | for Pat in Exp Block                  { MapE (LamE [$2] $5) $4 }
+    | if SimpleExp
+           Block
+      else Block                            { IfE $2 $3 $5 }
+    | Exp with Exp                          { BindE $1 $3 }
+    | SimpleExp                             { $1 }
 
-Destruct
-    :: { Assignment }
-    : id           { Direct $1 }
-    | '(' Vars ')' { Destructure $2 }
-
-Vars
-    :: { [Binding] }
-    : id ',' Vars   { $1 : $3 }
-    | id            { [$1] }
-
-Apply
-    :: { RawExpressionProducer }
-    : ApplyParams   { $1 }
-    |               { (`Apply` someUnitExpr) }
-
-ApplyParams
-    :: { RawExpressionProducer }
-    : Exp ',' Apply  { $3 . (`Apply` $1) }
-    | Exp            { (`Apply` $1) }
-
-FunDef
-    :: { RawExpression }
-    : '(' Params ')' FunBody { $2 $4 }
-
-FunBody
-    :: { RawExpression }
-    : '{' Stmts '}' { $2 }
-
-Params
-    :: { RawExpressionProducer }
-    : HasParams { $1 }
-    |           { ignoreArgLambda }
-
-HasParams
-    :: { RawExpressionProducer }
-    : Destruct ',' HasParams   { Lambda $1 . $3 }
-    | Destruct                 { Lambda $1 }
-
-NamedFunDef
-    :: { (Binding, RawExpression) }
-    : fn id FunDef { ($2, $3) }
+Pat
+    :: { Pat }
+    : id                         { VarP $1 }
+    | parens(many_sep(Pat, ',')) { case $1 of
+                                       [] -> UnitP
+                                       [x] -> x
+                                       xs -> TupP xs }
 
 TLFunDef
-    :: { (Binding, Annotated (FunAnn RustTyExpr) RawExpression) }
-    : fn id '(' AnnParams ')' FunRetAnn FunBody { let (types, e) = $4 in ($2, Annotated (FunAnn types $ Immutable $6) (e $7)) }
+    :: { Algo }
+    : fn id parens(many_sep(AnnPat, ',')) FunRetAnn Block
+        { let (pats, types) = unzip $3
+          in Algo { algoName = $2
+                  , algoTyAnn = FunAnn types $ Immutable $4
+                  , algoCode = LamE pats $5
+                  } }
 
-AnnParams
-    :: { ([RustTyExpr], RawExpressionProducer) }
-    : HasAnnParams { $1 }
-    |              { ([], ignoreArgLambda) }
-
-HasAnnParams
-    :: { ([RustTyExpr], RawExpressionProducer) }
-    : Destruct ':' InputTyAnn ',' HasAnnParams { let (l, e) = $5 in ($3 : l, Lambda $1 . e) }
-    | Destruct ':' InputTyAnn                  { ([$3], Lambda $1) }
+AnnPat
+    : Pat ':' InputTyAnn  { ($1, $3) }
 
 InputTyAnn
     :: { RustTyExpr }
-    : mut TyExpr { Mutable $2 }
-    | TyExpr     { Immutable $1 }
+    : opt(mut) TyExpr { maybe Immutable (const Mutable) $1 $2 }
 
 FunRetAnn
     :: { TyExpr SomeBinding }
     : '->' TyExpr { $2 }
     |             { tupleConstructor }
 
+TyExprList
+    :: { [TyExpr SomeBinding] }
+    : many_sep(TyExpr, ',') { $1 }
+
 TyExpr
     :: { TyExpr SomeBinding }
-    : '(' TyExprLst ')'           { foldl TyApp tupleConstructor $2 }
-    | TyExpr '<' TyExprLst '>' { foldl TyApp $1 ($3 :: [TyExpr SomeBinding]) }
-    | SomeId                   { TyRef $1 }
+    : parens(TyExprList)          { foldl TyApp tupleConstructor $1 }
+    | TyExpr '<' TyExprList '>'   { foldl TyApp $1 ($3 :: [TyExpr SomeBinding]) }
+    | or(QualId, id)              { TyRef $ either (Qual . toQualBnd) Unqual $1 }
 
-TyExprLst
-    :: { [TyExpr SomeBinding] }
-    : NonEmptyTyExprList { $1 }
-    |                    { [] }
+NS  :: { Namespace (Annotated (FunAnn RustTyExpr) Expr) }
+    : ns QualId ';' many(Decl) { mkNS (bndsToNSRef $2) $4 }
 
-NonEmptyTyExprList
-    :: { [TyExpr SomeBinding] }
-    : TyExpr ',' NonEmptyTyExprList  { $1 : $3 }
-    | TyExpr                         { [$1] :: [TyExpr SomeBinding] }
-
-NS
-    :: { Namespace (Annotated (FunAnn RustTyExpr) (Expr SomeBinding)) }
-    : ns QualId ';' Defs { mkNS (bndsToNSRef $2) $4 }
-
-Defs
-    :: { [Def] }
-    : Def Defs  { $1 : $2 }
-    | Def       { [$1] }
-
-Def :: { Def }
-    : use sf Reqdefs ';'    { Left (Left $3) }
-    | use algo Reqdefs ';'  { Left (Right $3) }
-    | TLFunDef              { Right $1 }
-
-Reqdefs
-    :: { [ReqDef] }
-    : ReqDef ',' Reqdefs    { $1 : $3 }
-    | ReqDef                { [$1] }
+Decl :: { Decl }
+    : use ReqDef ';'        { ImportDecl $2 }
+    | TLFunDef              { AlgoDecl $1 }
 
 ReqDef
-    :: { ReqDef }
-    : QualId '(' Refers ')' { (bndsToNSRef $1, $3) }
-    | QualId                { (bndsToNSRef $1, []) }
+    :: { Import }
+    : ReqType QualId opt(parens(many_sep(id, ',')))
+        { Import { isAlgo = $1
+                 , nsRef = bndsToNSRef $2
+                 , bindings = fromMaybe [] $3
+                 } }
 
-Refers
-    :: { [Binding] }
-    : id ',' Refers    { $1 : $3 }
-    | id               { [$1] }
-    |                  { [] }
+ReqType
+    :: { Bool }
+    : algo { True }
+    | sf   { False }
 
 {
 
@@ -229,33 +220,32 @@ type Input = BS.ByteString
 
 type PM = Alex
 
-type RawExpression = Expr SomeBinding
+type RawExpression = Expr
 
 type RawExpressionProducer = RawExpression -> RawExpression
 
-type ReqDef = (NSRef, [Binding])
-
-type FunDef = ( Binding
-              , Annotated (FunAnn RustTyExpr) (Expr SomeBinding))
-
-type Def = Either (Either [ReqDef] [ReqDef]) FunDef
-
-
-ignoreArgLambda :: Expr SomeBinding -> Expr SomeBinding
-ignoreArgLambda = Lambda (Direct "_")
-ignoreArgLet :: Expr SomeBinding -> Expr SomeBinding -> Expr SomeBinding
-ignoreArgLet = Let (Direct "_")
-
-bndsToNSRef :: [Binding] -> NSRef
-bndsToNSRef = makeThrow
+data Decl
+    = ImportDecl Import
+    | AlgoDecl Algo
+data Import = Import
+    { isAlgo :: Bool
+    , nsRef :: NSRef
+    , bindings :: [Binding]
+    }
+data Algo = Algo
+    { algoName :: Binding
+    , algoTyAnn :: FunAnn RustTyExpr
+    , algoCode :: Expr
+    } deriving ( Show, Eq )
 
 
-toQualBnd :: [Binding] -> QualifiedBinding
-toQualBnd [] = error "empty id"
+bndsToNSRef :: (Container c, Element c ~ Binding) => c -> NSRef
+bndsToNSRef = makeThrow . toList
+
+
+toQualBnd :: NonEmpty Binding -> QualifiedBinding
 toQualBnd [x] = error "qual bnd with only one component"
-toQualBnd (x:xs) = QualifiedBinding (bndsToNSRef $ init safeList) (last safeList)
-  where
-    safeList = x :| xs
+toQualBnd xs = QualifiedBinding (bndsToNSRef $ init xs) (last xs)
 
 runPM :: PM a -> Input -> a
 runPM ac bs = either (error . toText) identity $ runAlex bs ac
@@ -269,10 +259,10 @@ nextToken = alexMonadScan
 
 
 -- | Parse a stream of tokens into a simple ALang expression
-parseExp :: Input -> Expr SomeBinding
+parseExp :: Input -> Expr
 parseExp = runPM parseExpM
 
-parseTLFunDef :: Input -> FunDef
+parseTLFunDef :: Input -> Algo
 parseTLFunDef = runPM parseTLFunDefM
 
 parseTyAnn :: Input -> RustTyExpr
@@ -285,17 +275,24 @@ parseError token = do
 
 
 -- | Parse a stream of tokens into a namespace
-parseNS :: Input -> Namespace (Annotated (FunAnn RustTyExpr) (Expr SomeBinding))
+parseNS :: Input -> Namespace (Annotated (FunAnn RustTyExpr) Expr)
 parseNS = runPM parseNSRawM
 
-mkNS :: NSRef -> [Def] -> Namespace (Annotated (FunAnn RustTyExpr) (Expr SomeBinding))
+mkNS :: NSRef -> [Decl] -> Namespace (Annotated (FunAnn RustTyExpr) Expr)
 mkNS name defs = (emptyNamespace name :: Namespace ())
-     & algoImports .~ concat algoRequires
-     & sfImports .~ concat sfRequires
-     & decls .~ fundefs
+     & algoImports .~ map importToTuple algoRequires
+     & sfImports .~ map importToTuple sfRequires
+     & decls .~ algos
   where
-    (requireList, fundefList) = partitionEithers defs
-    (sfRequires, algoRequires) = partitionEithers requireList
-    fundefs = HM.fromList fundefList
+    (requires, algoList) = partitionDecls defs
+    sfRequires = filter (not . isAlgo) requires
+    algoRequires = filter isAlgo requires
+    importToTuple Import{nsRef, bindings} = (nsRef, bindings)
+    algos = HM.fromList $ map (\Algo{algoTyAnn, algoName, algoCode} -> (algoName, Annotated algoTyAnn algoCode)) algoList -- ignores algos which are defined twice
+
+partitionDecls :: [Decl] -> ([Import], [Algo])
+partitionDecls = flip foldr' ([],[]) . flip $ \(xs,ys) -> \case
+    ImportDecl i -> (i:xs, ys)
+    AlgoDecl a -> (xs, a:ys)
 
 }
