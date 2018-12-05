@@ -1,5 +1,5 @@
 name: alang-clike-parser
-version: '0.1.0'
+version: '0.2.0'
 category: Devel
 author: Justus Adam
 maintainer: dev@justus.science
@@ -43,7 +43,7 @@ default-extensions:
 dependencies:
 - base >=4.7 && <5
 - bytestring
-- ohua-core
+- ohua-core >= 0.3.0
 library:
   source-dirs: src
   exposed-modules:
