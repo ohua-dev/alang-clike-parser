@@ -201,12 +201,20 @@ Decl :: { Decl }
     : use ReqDef ';'        { ImportDecl $2 }
     | TLFunDef              { AlgoDecl $1 }
 
+Import
+    : id ImportCont { $2 $1 }
+    | braces(many_sep(id, ',')) { ([], $1) }
+
+ImportCont
+    : '::' Import { \x -> first (x:) $2 }
+    |             { \x -> ([], [x]) }
+
 ReqDef
     :: { Import }
-    : ReqType QualId opt(parens(many_sep(id, ',')))
+    : ReqType Import
         { Import { isAlgo = $1
-                 , nsRef = bndsToNSRef $2
-                 , bindings = fromMaybe [] $3
+                 , nsRef = bndsToNSRef $ fst $2
+                 , bindings = snd $2
                  } }
 
 ReqType
