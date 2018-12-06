@@ -44,6 +44,8 @@ main =
                 lp "- 1" `shouldBe` LitE (NumericLit (-1))
                 lp "-4" `shouldBe` LitE (NumericLit (-4))
                 lp "-100040" `shouldBe` LitE (NumericLit (-100040))
+            it "() is a valid pattern" $
+                lp "|()| a" `shouldBe` LamE [UnitP] "a"
         it "parses a statement" $
             lp "{ a () ; a }" `shouldBe` StmtE (AppE "a" []) "a"
         it "parses a void block" $
