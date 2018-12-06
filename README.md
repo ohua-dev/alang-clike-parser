@@ -7,20 +7,23 @@ An example of a standalone Ohua module in the C/Rust like syntax.
 ```rs
 ns some_ns;
 
-use ohua.math (add, isZero);
+use sf ohua.math::{add, isZero, plus};
+use algo some::module::anAlgo;
 
 fn sqare (x) {
     add(x, x)
 }
 
 fn algo1 (someParam) {
-    let a = square(someParam);
+    let a = square(anAlgo(someParam));
 
     let coll0 = for i in coll {
         square(i)
     };
 
-    if (isZero(a)) {
+    let plusThree = | a | { plus(a, 3) };
+
+    if (isZero(plusThree(a))) {
         coll0
     } else {
         a
