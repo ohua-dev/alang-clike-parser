@@ -43,6 +43,7 @@ import Prelude ((!!))
 %token
 
     id      { Id $$ }
+    number  { Number $$ }
 
     '='     { OpEq }
     fn      { KWFn }
@@ -143,6 +144,7 @@ SimpleExp :: { RawExpression }
                                        xs -> TupE xs }
     | Block                                 { $1 }
     | SomeId                                { $1 }
+    | number                                { LitE (NumericLit $1) }
 
 Exp
     :: { RawExpression }

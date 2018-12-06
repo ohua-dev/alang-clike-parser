@@ -23,11 +23,25 @@ main =
             lp "something(a, b, c)" `shouldBe` AppE "something" ["a", "b", "c"]
         it "parses a tuple construction" $
             lp "(a, b, c)" `shouldBe` TupE ["a", "b", "c"]
-        it "parses a let" $ lp "{ let a = b; b }" `shouldBe` LetE "a" "b" "b"
-        it "parses a let with destructuring" $
-            lp "{ let (a, b) = c; a }" `shouldBe` LetE ["a", "b"] "c" "a"
-        it "parses a let with an ignored binding" $
-            lp "{ let _ = a ; a}" `shouldBe` LetE "_" "a" "a"
+        describe "let" $ do
+            it "basic" $ lp "{ let a = b; b }" `shouldBe` LetE "a" "b" "b"
+            it "with destructuring" $
+                lp "{ let (a, b) = c; a }" `shouldBe` LetE ["a", "b"] "c" "a"
+            it "with an ignored binding" $
+                lp "{ let _ = a ; a}" `shouldBe` LetE "_" "a" "a"
+            it "a sequence of bindings" $
+                lp "{ let a = t; let b = r; print(f); a }" `shouldBe`
+                LetE "a" "t" (LetE "b" "r" $ StmtE (AppE "print" ["f"]) "a")
+        describe "literals" $ do
+            it "parses unit" $ lp "()" `shouldBe` LitE UnitLit
+            it "parses integers" $ do
+                lp "1" `shouldBe` LitE (NumericLit 1)
+                lp "4" `shouldBe` LitE (NumericLit 4)
+                lp "100040" `shouldBe` LitE (NumericLit 100040)
+            it "parses negative integers" $ do
+                lp "-1" `shouldBe` LitE (NumericLit (-1))
+                lp "-4" `shouldBe` LitE (NumericLit (-4))
+                lp "-100040" `shouldBe` LitE (NumericLit (-100040))
         it "parses a statement" $
             lp "{ a () ; a }" `shouldBe` StmtE (AppE "a" []) "a"
         it "parses a void block" $
@@ -40,9 +54,6 @@ main =
         -- we may want operators at some point
         -- it "parses an identifier with strange symbols" $
         --     lp "(let [a-b a0] -)" `shouldBe` Let "a-b" "a0" "-"
-        it "parses sequences of let binds" $
-            lp "{ let a = t; let b = r; print(f); a }" `shouldBe`
-            (LetE "a" "t" $ LetE "b" "r" $ StmtE (AppE "print" ["f"]) "a")
         it "parses a named fundef that returns a tuple" $
             parseTLFunDef "fn f () { (a, b) }" `shouldBe`
             Algo
@@ -130,10 +141,7 @@ main =
                            TyRef "Bool")) $
                  LamE ["someParam"] $
                  LetE "a" (AppE "square" ["someParam"]) $
-                 LetE
-                     "coll0"
-                     (MapE
-                          (LamE ["i"] (AppE "square" ["i"])) "coll") $
+                 LetE "coll0" (MapE (LamE ["i"] (AppE "square" ["i"])) "coll") $
                  IfE (AppE "isZero" ["a"]) "coll0" "a")
              , ( "main"
                , Annotated

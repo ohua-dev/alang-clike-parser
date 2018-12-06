@@ -23,14 +23,15 @@ import Data.List (intercalate)
 import qualified GHC.Show
 import Data.Text (splitOn)
 
-import Prelude (String, undefined)
+import Prelude (String, undefined, read)
 }
 
 %wrapper "monad-bytestring"
 
 $char = [a-zA-Z]
 $sym  = [_]
-$numerical = [0-9]
+$num_not_zero = [1-9]
+$numerical = [0 $num_not_zero]
 $reserved = [@\#:\-\$]
 $idchar = [$numerical $sym $char]
 $idstartchar = [$char $sym]
@@ -38,6 +39,8 @@ $sep = $white
 
 @id = $idstartchar $idchar*
 @qualid = @id (:: @id)+
+
+@number = 0 | "-"? $num_not_zero $numerical*
 
 :-
 
@@ -68,7 +71,9 @@ $sep = $white
 	      "mut" 	    { direct KWMut }
         "with"      { direct KWWith }
         @id         { tokenOverInputStr $ Id . convertId }
+        @number     { tokenOverInputStr $ Number . read . BS.unpack }
         $sep        ;
+        $reserved { withMatchedInput $ \s -> alexError $ "Reserved symbol: " <> BS.unpack s }
 
         "/*" { begin blockComment }
         "//" { begin lineComment }
@@ -84,9 +89,6 @@ $sep = $white
         . ;
         \n ;
     }
-
-    $reserved { withMatchedInput $ \s -> alexError $ "Reserved symbol: " <> BS.unpack s }
-
 
 {
 
@@ -118,6 +120,7 @@ data Lexeme
     | KWNS -- ^ keyword @ns@ (namespace)
     | KWMut -- ^ keyword @mut@
     | KWWith
+    | Number Integer
     | Id !Binding
     | EOF
 
@@ -150,6 +153,7 @@ instance Show Lexeme where
     KWNS -> "'ns'"
     KWMut -> "'mut'"
     KWWith -> "'with'"
+    Number n -> "'" <> show n <> "'"
     Id bnd -> "id '" <> bndToString bnd <> "'"
     EOF -> "end of file"
     where
