@@ -32,7 +32,7 @@ $char = [a-zA-Z]
 $sym  = [_]
 $num_not_zero = [1-9]
 $numerical = [0 $num_not_zero]
-$reserved = [@\#:\-\$]
+$reserved = [@\#:\$]
 $idchar = [$numerical $sym $char]
 $idstartchar = [$char $sym]
 $sep = $white
@@ -40,7 +40,7 @@ $sep = $white
 @id = $idstartchar $idchar*
 @qualid = @id (:: @id)+
 
-@number = 0 | "-"? $num_not_zero $numerical*
+@number = 0 | $num_not_zero $numerical*
 
 :-
 
@@ -58,6 +58,7 @@ $sep = $white
         ";"         { direct Semicolon }
 	      "->" 	      { direct RArrow }
         "|"         { direct Pipe }
+        "-"         { direct OPMinus }
         "fn"        { direct KWFn }
         "if"        { direct KWIf }
         "else"      { direct KWElse }
@@ -108,6 +109,7 @@ data Lexeme
     | RAngle -- ^ @>@
     | RArrow -- ^ @->@
     | Pipe
+    | OPMinus
     | KWLet -- ^ keyword @let@
     | KWIf -- ^ keyword @if@
     | KWElse -- ^ keyword @else@
@@ -138,6 +140,7 @@ instance Show Lexeme where
     Colon -> "':'"
     Semicolon -> "';'"
     Pipe -> "'|'"
+    OPMinus -> "'-'"
     LAngle -> "'<'"
     RAngle -> "'>'"
     RArrow -> "'->'"

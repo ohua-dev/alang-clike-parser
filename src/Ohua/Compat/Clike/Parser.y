@@ -70,6 +70,7 @@ import Prelude ((!!))
     '>'     { RAngle }
     '->'    { RArrow }
     '|'     { Pipe }
+    '-'     { OPMinus }
 
 %%
 
@@ -144,7 +145,7 @@ SimpleExp :: { RawExpression }
                                        xs -> TupE xs }
     | Block                                 { $1 }
     | SomeId                                { $1 }
-    | number                                { LitE (NumericLit $1) }
+    | opt('-') number            { LitE (NumericLit $ maybe id (const negate) $1 $2) }
 
 Exp
     :: { RawExpression }

@@ -35,11 +35,13 @@ main =
         describe "literals" $ do
             it "parses unit" $ lp "()" `shouldBe` LitE UnitLit
             it "parses integers" $ do
+                lp "0" `shouldBe` LitE (NumericLit 0)
                 lp "1" `shouldBe` LitE (NumericLit 1)
                 lp "4" `shouldBe` LitE (NumericLit 4)
                 lp "100040" `shouldBe` LitE (NumericLit 100040)
             it "parses negative integers" $ do
                 lp "-1" `shouldBe` LitE (NumericLit (-1))
+                lp "- 1" `shouldBe` LitE (NumericLit (-1))
                 lp "-4" `shouldBe` LitE (NumericLit (-4))
                 lp "-100040" `shouldBe` LitE (NumericLit (-100040))
         it "parses a statement" $
