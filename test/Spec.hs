@@ -54,6 +54,21 @@ main =
         it "parses a lambda" $
             lp "|a, (b, c)| { print(a); c }" `shouldBe`
             LamE ["a", ["b", "c"]] (StmtE (AppE "print" ["a"]) "c")
+        describe "state binding" $ do
+            it "parses a simple state binding" $
+                lp "x with a" `shouldBe` BindE "x" "a"
+            it ".. with literal" $ do
+                lp "x with ()" `shouldBe` BindE "x" (LitE UnitLit)
+                lp "x with 1" `shouldBe` BindE "x" (LitE (NumericLit 1))
+            describe "precedence" $ do
+                it "apply before bind" $
+                    lp "x with a (b)" `shouldBe` BindE "x" (AppE "a" ["b"])
+                it "parenthesized bind" $
+                    lp "(x with a) ( b )" `shouldBe` AppE (BindE "x" "a") ["b"]
+                it "let before bind" $
+                    lp "x with { let y = a; y }" `shouldBe` BindE "x" (LetE "y" "a" "y")
+                it "bind in let" $
+                    lp "{ let y = x with a; y }" `shouldBe` LetE "y" (BindE "x" "a") "y"
         -- not sure this next test case is a good idea in a c-like language
         -- we may want operators at some point
         -- it "parses an identifier with strange symbols" $
