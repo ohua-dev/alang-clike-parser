@@ -51,24 +51,31 @@ main =
         it "parses a void block" $
             lp "{ a (); b (); }" `shouldBe`
             StmtE (AppE "a" []) (StmtE (AppE "b" []) $ LitE UnitLit)
-        it "parses a lambda" $
-            lp "|a, (b, c)| { print(a); c }" `shouldBe`
-            LamE ["a", ["b", "c"]] (StmtE (AppE "print" ["a"]) "c")
+        describe "lambda" $ do
+            it "with pattern" $
+                lp "|a, (b, c)| { print(a); c }" `shouldBe`
+                LamE ["a", ["b", "c"]] (StmtE (AppE "print" ["a"]) "c")
+            it "with call" $
+                lp "|a| print(c)" `shouldBe` LamE ["a"] (AppE "print" ["c"])
+        describe "conditionals" $ do
+            it "parses a simple if" $
+                lp "if a { b } else { c }" `shouldBe` IfE "a" "b" "c"
+            it "parses an if with a call as condition" $
+                lp "if a(b) { c } else { d }" `shouldBe` IfE ("a" `AppE` ["b"]) "c" "d"
         describe "state binding" $ do
-            it "parses a simple state binding" $
-                lp "x with a" `shouldBe` BindE "x" "a"
+            it "parses a simple state binding" $ do
+                lp "x.a" `shouldBe` BindE "x" "a"
+                lp "x.foo(a,b,c)" `shouldBe` BindE "x" "foo" `AppE` [ "a", "b", "c" ]
             it ".. with literal" $ do
-                lp "x with ()" `shouldBe` BindE "x" (LitE UnitLit)
-                lp "x with 1" `shouldBe` BindE "x" (LitE (NumericLit 1))
+                lp "().x" `shouldBe` BindE (LitE UnitLit) "x"
+                lp "1.x" `shouldBe` BindE (LitE (NumericLit 1)) "x"
             describe "precedence" $ do
-                it "apply before bind" $
-                    lp "x with a (b)" `shouldBe` BindE "x" (AppE "a" ["b"])
                 it "parenthesized bind" $
-                    lp "(x with a) ( b )" `shouldBe` AppE (BindE "x" "a") ["b"]
+                    lp "(a(b)).x" `shouldBe` BindE ("a" `AppE` [ "b" ]) "x"
                 it "let before bind" $
-                    lp "x with { let y = a; y }" `shouldBe` BindE "x" (LetE "y" "a" "y")
+                    lp "x.{ let y = a; y }" `shouldBe` BindE "x" (LetE "y" "a" "y")
                 it "bind in let" $
-                    lp "{ let y = x with a; y }" `shouldBe` LetE "y" (BindE "x" "a") "y"
+                    lp "{ let y = x.a; y }" `shouldBe` LetE "y" (BindE "x" "a") "y"
         -- not sure this next test case is a good idea in a c-like language
         -- we may want operators at some point
         -- it "parses an identifier with strange symbols" $

@@ -57,7 +57,6 @@ import Prelude ((!!))
     for     { KWFor }
     in      { KWIn }
     mut     { KWMut }
-    with    { KWWith }
     ','     { Comma }
     '('     { LParen }
     ')'     { RParen }
@@ -71,6 +70,7 @@ import Prelude ((!!))
     '->'    { RArrow }
     '|'     { Pipe }
     '-'     { OPMinus }
+    '.'     { OPDot }
 
 %%
 
@@ -138,25 +138,38 @@ StmtSem
     : Exp                   { Left $1 }
     | let Pat '=' Exp       { Right ($2, $4) }
 
+SimpleNoTuple
+    : Block                                 { $1 }
+    | SomeId                                { $1 }
+    | opt('-') number            { LitE (NumericLit $ maybe id (const negate) $1 $2) }
+
 SimpleExp :: { RawExpression }
     : parens(many_sep(Exp, ',')) { case $1 of
                                        [] -> LitE UnitLit
                                        [x] -> x
                                        xs -> TupE xs }
-    | Block                                 { $1 }
-    | SomeId                                { $1 }
-    | opt('-') number            { LitE (NumericLit $ maybe id (const negate) $1 $2) }
+    | SimpleNoTuple              { $1 }
+
+
+BindCont
+    : '.' SimpleNoTuple { ( `BindE` $2 ) }
+    |                   { id }
+
+CallCont
+    : parens(many_sep(Exp, ','))  { ( `AppE` $1 ) }
+    |                             { id }
+
+SimpleOrCall
+    : SimpleExp BindCont CallCont { ($3 . $2) $1 }
 
 Exp
     :: { RawExpression }
-    : '|' many_sep(Pat, ',') '|' SimpleExp  { LamE $2 $4 }
-    | SimpleExp parens(many_sep(Exp, ','))  { $1 `AppE` $2 }
+    : '|' many_sep(Pat, ',') '|' SimpleOrCall  { LamE $2 $4 }
     | for Pat in Exp Block                  { MapE (LamE [$2] $5) $4 }
-    | if SimpleExp
+    | if SimpleOrCall
            Block
       else Block                            { IfE $2 $3 $5 }
-    | Exp with Exp                          { BindE $1 $3 }
-    | SimpleExp                             { $1 }
+    | SimpleOrCall                          { $1 }
 
 Pat
     :: { Pat }

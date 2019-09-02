@@ -59,6 +59,7 @@ $sep = $white
 	      "->" 	      { direct RArrow }
         "|"         { direct Pipe }
         "-"         { direct OPMinus }
+        "."         { direct OPDot }
         "fn"        { direct KWFn }
         "if"        { direct KWIf }
         "else"      { direct KWElse }
@@ -70,7 +71,6 @@ $sep = $white
         "ns"        { direct KWNS }
         "let"       { direct KWLet }
 	      "mut" 	    { direct KWMut }
-        "with"      { direct KWWith }
         @id         { tokenOverInputStr $ Id . convertId }
         @number     { tokenOverInputStr $ Number . read . BS.unpack }
         $sep        ;
@@ -110,6 +110,7 @@ data Lexeme
     | RArrow -- ^ @->@
     | Pipe
     | OPMinus
+    | OPDot
     | KWLet -- ^ keyword @let@
     | KWIf -- ^ keyword @if@
     | KWElse -- ^ keyword @else@
@@ -121,7 +122,6 @@ data Lexeme
     | KWSf -- ^ keyword @sf@
     | KWNS -- ^ keyword @ns@ (namespace)
     | KWMut -- ^ keyword @mut@
-    | KWWith
     | Number Integer
     | Id !Binding
     | EOF
@@ -136,6 +136,7 @@ instance Show Lexeme where
     RBrace -> "'}'"
     OpEq -> "'='"
     Comma -> "','"
+    OPDot -> "'.'"
     DoubleColon -> "'::'"
     Colon -> "':'"
     Semicolon -> "';'"
@@ -155,7 +156,6 @@ instance Show Lexeme where
     KWSf -> "'sf'"
     KWNS -> "'ns'"
     KWMut -> "'mut'"
-    KWWith -> "'with'"
     Number n -> "'" <> show n <> "'"
     Id bnd -> "id '" <> bndToString bnd <> "'"
     EOF -> "end of file"
