@@ -103,6 +103,9 @@ or(a, b)
     : a { Left $1 }
     | b { Right $1 }
 
+tuple(p)
+    : parens(many_sep(p, ',')) { $1 }
+
 QualId
     :: { NonEmpty Binding }
     : many_sep1(id, '::') { $1 }
@@ -144,11 +147,11 @@ SimpleNoTuple
     | opt('-') number            { LitE (NumericLit $ maybe id (const negate) $1 $2) }
 
 SimpleExp :: { RawExpression }
-    : parens(many_sep(Exp, ',')) { case $1 of
-                                       [] -> LitE UnitLit
-                                       [x] -> x
-                                       xs -> TupE xs }
-    | SimpleNoTuple              { $1 }
+    : tuple(Exp)             { case $1 of
+                                   [] -> LitE UnitLit
+                                   [x] -> x
+                                   xs -> TupE xs }
+    | SimpleNoTuple          { $1 }
 
 
 BindCont
@@ -156,36 +159,50 @@ BindCont
     |                   { id }
 
 CallCont
-    : parens(many_sep(Exp, ','))  { ( `AppE` $1 ) }
-    |                             { id }
+    : tuple(Exp)  { ( `AppE` $1 ) }
+    |             { id }
 
 SimpleOrCall
     : SimpleExp BindCont CallCont { ($3 . $2) $1 }
+
+IfCont
+    : SimpleOrCall Block ThenCont { IfE $1 $2 $3 }
+
+ThenCont
+    : else ElseCont               { $2 }
+    |                             { LitE UnitLit }
+
+ElseCont
+    : if IfCont                   { $2 }
+    | Block                       { $1 }
 
 Exp
     :: { RawExpression }
     : '|' many_sep(Pat, ',') '|' SimpleOrCall  { LamE $2 $4 }
     | for Pat in Exp Block                  { MapE (LamE [$2] $5) $4 }
-    | if SimpleOrCall
-           Block
-      else Block                            { IfE $2 $3 $5 }
+    | if IfCont                             { $2 }
     | SimpleOrCall                          { $1 }
 
 Pat
     :: { Pat }
     : id                         { VarP $1 }
-    | parens(many_sep(Pat, ',')) { case $1 of
+    | tuple(Pat)                 { case $1 of
                                        [] -> UnitP
                                        [x] -> x
                                        xs -> TupP xs }
 
+TLFunSig
+    : fn id tuple(AnnPat) FunRetAnn
+        { let (pats, types) = unzip $3
+          in (($2, FunAnn types $ Immutable $4), pats) }
+
 TLFunDef
     :: { Algo }
-    : fn id parens(many_sep(AnnPat, ',')) FunRetAnn Block
-        { let (pats, types) = unzip $3
-          in Algo { algoName = $2
-                  , algoTyAnn = FunAnn types $ Immutable $4
-                  , algoCode = LamE pats $5
+    : TLFunSig Block
+        { let ( (name, ann), pats ) = $1
+          in Algo { algoName = name
+                  , algoTyAnn = ann
+                  , algoCode = LamE pats $2
                   } }
 
 AnnPat
@@ -210,12 +227,22 @@ TyExpr
     | TyExpr '<' TyExprList '>'   { foldl TyApp $1 ($3 :: [TyExpr SomeBinding]) }
     | or(QualId, id)              { TyRef $ either (Qual . toQualBnd) Unqual $1 }
 
-NS  :: { Namespace (Annotated (FunAnn RustTyExpr) Expr) }
+NS
     : ns QualId ';' many(Decl) { mkNS (bndsToNSRef $2) $4 }
+
+FunDefCont
+    : Block
+        { \( (name, ann),  pats ) ->
+          AlgoDecl $
+          Algo { algoName = name
+               , algoTyAnn = ann
+               , algoCode = LamE pats $1
+               } }
 
 Decl :: { Decl }
     : use ReqDef ';'        { ImportDecl $2 }
-    | TLFunDef              { AlgoDecl $1 }
+    | TLFunSig FunDefCont   { $2 $1 }
+    | pragma                { PragmaD $ either error id $ parsePragma $1 }
 
 Import
     : id ImportCont { $2 $1 }
