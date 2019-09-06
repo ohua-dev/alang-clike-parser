@@ -44,6 +44,9 @@ dependencies:
 - base >=4.7 && <5
 - bytestring
 - ohua-core >= 0.3.0
+- lens
+- mtl
+- recursion-schemes
 library:
   source-dirs: src
   exposed-modules:

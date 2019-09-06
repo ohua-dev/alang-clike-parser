@@ -10,7 +10,7 @@
 -- This source code is licensed under the terms described in the associated LICENSE.TXT file
 {-# OPTIONS_GHC -funbox-strict-fields -fno-warn-unused-imports #-}
 module Ohua.Compat.Clike.Lexer
-  ( tokenize, Lexeme(..), alexMonadScan, runAlex, Alex, getLexerPos
+  ( tokenize, Lexeme(..), alexMonadScan, runAlex, Alex, lexerPos, absolutePos, linePos, colPos
   )
   where
 
@@ -22,11 +22,12 @@ import Data.Functor.Foldable
 import Data.List (intercalate)
 import qualified GHC.Show
 import Data.Text (splitOn)
+import Control.Lens (use, (.=))
 
 import Prelude (String, undefined, read)
 }
 
-%wrapper "monad-bytestring"
+%wrapper "monadUserState-bytestring"
 
 $char = [a-zA-Z]
 $sym  = [_]
@@ -74,19 +75,22 @@ $sep = $white
         @id         { tokenOverInputStr $ Id . convertId }
         @number     { tokenOverInputStr $ Number . read . BS.unpack }
         $sep        ;
-        $reserved { withMatchedInput $ \s -> alexError $ "Reserved symbol: " <> BS.unpack s }
+        $reserved   { withMatchedInput $ \s -> alexError $ "Reserved symbol: " <> BS.unpack s }
 
-        "/*" { begin blockComment }
-        "//" { begin lineComment }
+        "/*#" { beginRecord `andBegin` blockComment }
+        "/*"  { begin blockComment }
+        "//#" { beginRecord `andBegin` lineComment }
+        "//"  { begin lineComment }
     }
 
     <lineComment> {
-        \n { begin 0 }
+        \n { \inp len -> alexSetStartCode 0 >> endRecord inp len >>= maybe alexMonadScan (pure . Pragma) }
         . ;
     }
 
     <blockComment> {
-        "*/" { begin 0 }
+        "#*/" { \inp len -> alexSetStartCode 0 >> endRecord inp len >>= maybe (throwError "Unexpected closing pragma") (pure . Pragma) }
+        "*/"  { \inp len -> alexSetStartCode 0 >> endRecord inp len >>= maybe alexMonadScan (const $ throwError "Unclosed pragma") }
         . ;
         \n ;
     }
@@ -124,6 +128,7 @@ data Lexeme
     | KWMut -- ^ keyword @mut@
     | Number Integer
     | Id !Binding
+    | Pragma Text
     | EOF
 
 instance Show Lexeme where
@@ -158,12 +163,49 @@ instance Show Lexeme where
     KWMut -> "'mut'"
     Number n -> "'" <> show n <> "'"
     Id bnd -> "id '" <> bndToString bnd <> "'"
+    Pragma t -> "pragma " <> show t
     EOF -> "end of file"
     where
       bndToString = toString . unwrap
 
+data AlexUserState = AlexUserState (Maybe (ByteString.ByteString, Int64) )
 
-direct tok _ _ = pure tok
+instance MonadState AlexState Alex where
+    state f = Alex (pure . swap . f)
+
+recordStr f (AlexUserState s) = AlexUserState <$> f s
+userState f s = (\u -> s { alex_ust = u }) <$> f ( alex_ust s )
+lexerPos f s = (\p -> s { alex_pos = p }) <$> f ( alex_pos s )
+alexInput f s = (\p -> s { alex_inp = p }) <$> f ( alex_inp s )
+absolutePos f (AlexPn a b c) = (\p -> AlexPn p b c) <$> f a
+linePos f (AlexPn a b c) = (\p -> AlexPn a p c) <$> f b
+colPos f (AlexPn a b c) = (\p -> AlexPn a b p) <$> f c
+
+beginRecord _ len = do
+    p <- use $ lexerPos . absolutePos
+    u <- use $ userState . recordStr
+    unless (u == Nothing) $ throwError "Internal error: Begin record in begin record"
+    i <- use alexInput
+    userState . recordStr .= Just (i, fromIntegral p)
+    alexMonadScan
+
+endRecord :: a -> Int64 -> Alex (Maybe Text)
+endRecord _ len =
+    use ( userState . recordStr ) >>= \case
+        Just (str, pos0) -> do
+            p <- use $ lexerPos . absolutePos
+            userState . recordStr .= Nothing
+            let matched = decodeUtf8 $ str & BS.take (fromIntegral p - pos0 - len)
+            pure $ Just $ matched
+        Nothing -> pure Nothing
+
+alexInitUserState = AlexUserState Nothing
+
+direct tok = only (pure tok)
+
+onlyError msg = only (alexError msg)
+
+only f _ _ = f
 
 tokenOverInputStr f = withMatchedInput (pure . f)
 
@@ -174,9 +216,6 @@ convertId = makeThrow . decodeUtf8
 
 
 alexEOF = pure EOF
-
-getLexerPos :: Alex (Int, Int)
-getLexerPos = Alex $ \s@AlexState{ alex_pos=AlexPn _ line col} -> pure (s, (line, col))
 
 -- | Tokenize a lazy bytestring into lexemes
 tokenize :: BS.ByteString -> [Lexeme]

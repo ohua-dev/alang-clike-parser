@@ -8,8 +8,7 @@
 -- Stability   : experimental
 
 -- This source code is licensed under the terms described in the associated LICENSE.TXT file
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedStrings, LambdaCase, TypeApplications #-}
 module Ohua.Compat.Clike.Parser
     ( parseNS, parseExp, parseTLFunDef
     , Namespace(..)
@@ -18,13 +17,17 @@ module Ohua.Compat.Clike.Parser
 
 import Ohua.Prelude
 
+import qualified Data.HashMap.Strict as HM
+import qualified Data.ByteString.Lazy as BS
+import Control.Lens (ix, use)
+import Control.Monad.Writer (runWriter, tell)
+import Data.Functor.Foldable (cata, embed)
+
 import Ohua.Compat.Clike.Lexer
 import Ohua.Compat.Clike.Types
 import Ohua.Frontend.Lang
 import Ohua.Types
 import Ohua.Frontend.NS
-import qualified Data.HashMap.Strict as HM
-import qualified Data.ByteString.Lazy as BS
 
 --import Unsafe
 import Prelude ((!!))
@@ -44,6 +47,7 @@ import Prelude ((!!))
 
     id      { Id $$ }
     number  { Number $$ }
+    pragma  { Pragma $$ }
 
     '='     { OpEq }
     fn      { KWFn }
@@ -278,6 +282,7 @@ type RawExpressionProducer = RawExpression -> RawExpression
 data Decl
     = ImportDecl Import
     | AlgoDecl Algo
+    | PragmaD Pragma
 data Import = Import
     { isAlgo :: Bool
     , nsRef :: NSRef
@@ -307,8 +312,6 @@ lexer cont = nextToken >>= cont
 nextToken :: PM Lexeme
 nextToken = alexMonadScan
 
-
-
 -- | Parse a stream of tokens into a simple ALang expression
 parseExp :: Input -> Expr
 parseExp = runPM parseExpM
@@ -321,7 +324,8 @@ parseTyAnn = runPM parseTyAnnM
 
 parseError :: Lexeme -> PM a
 parseError token = do
-  (line, col) <- getLexerPos
+  line <- use $ lexerPos . linePos
+  col <- use $ lexerPos . colPos
   throwError $ "Parse error at line " <> show line <> ", column " <> show col <> ", on token " <> show token
 
 
@@ -331,19 +335,30 @@ parseNS = runPM parseNSRawM
 
 mkNS :: NSRef -> [Decl] -> Namespace (Annotated (FunAnn RustTyExpr) Expr)
 mkNS name defs = (emptyNamespace name :: Namespace ())
-     & algoImports .~ map importToTuple algoRequires
-     & sfImports .~ map importToTuple sfRequires
+     & algoImports .~ map importToTuple algoRequires <> map ((,[])) extraAlgoNamespaces
+     & sfImports .~ map importToTuple sfRequires <> map ((,[])) extraSfNamespaces
      & decls .~ algos
+     & pragmas .~ pragmaList
   where
-    (requires, algoList) = partitionDecls defs
+    (requires, algoList, pragmaList) = partitionDecls defs
     sfRequires = filter (not . isAlgo) requires
     algoRequires = filter isAlgo requires
     importToTuple Import{nsRef, bindings} = (nsRef, bindings)
-    algos = HM.fromList $ map (\Algo{algoTyAnn, algoName, algoCode} -> (algoName, Annotated algoTyAnn algoCode)) algoList -- ignores algos which are defined twice
+    fillInRefers = cata $ sequence >=> \case
+        LitEF (FunRefLit (FunRef ref id))
+            | Just (ns, isAlgo) <- ref ^? namespace . unwrapped . ix 0 >>= getRequire -> do
+                let newBnd = ref & namespace . unwrapped @NSRef @NSRef %~ (ns ^. unwrapped <>)
+                tell $ if isAlgo then ([ newBnd ^. namespace ], mempty) else (mempty, [ newBnd ^. namespace ])
+                pure $ LitE (FunRefLit (FunRef newBnd id))
+        e -> pure $ embed e
+    getRequire = flip HM.lookup $ HM.fromList [ (refer, ( nsRef import_, isAlgo import_ )) | import_ <- sfRequires <> algoRequires, refer <- bindings import_ ]
+    (algoList', (extraAlgoNamespaces, extraSfNamespaces)) = runWriter $ traverse (\a@Algo{algoCode=c} -> (\c' -> a { algoCode = c' }) <$> fillInRefers c) algoList
+    algos = HM.fromList $ map (\Algo{algoTyAnn, algoName, algoCode} -> (algoName, Annotated algoTyAnn algoCode)) algoList' -- ignores algos which are defined twice
 
-partitionDecls :: [Decl] -> ([Import], [Algo])
-partitionDecls = flip foldr' ([],[]) . flip $ \(xs,ys) -> \case
-    ImportDecl i -> (i:xs, ys)
-    AlgoDecl a -> (xs, a:ys)
+partitionDecls :: [Decl] -> ([Import], [Algo], [Pragma])
+partitionDecls = flip foldl' mempty . flip $ \case
+    ImportDecl i -> _1 %~ (i:)
+    AlgoDecl a -> _2 %~ (a:)
+    PragmaD p -> _3 %~ (p:)
 
 }
