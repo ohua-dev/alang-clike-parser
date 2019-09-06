@@ -68,7 +68,7 @@ $sep = $white
         "use"       { direct KWUse }
         "sf"        { direct KWSf }
         "algo"      { direct KWAlgo }
-        "ns"        { direct KWNS }
+        "ns" | "mod"{ direct KWNS }
         "let"       { direct KWLet }
 	      "mut" 	    { direct KWMut }
         @id         { tokenOverInputStr $ Id . convertId }
