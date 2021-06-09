@@ -50,17 +50,26 @@ $sep = $white
         ")"         { direct RParen }
         "{"         { direct LBrace }
         "}"         { direct RBrace }
+        "["         { direct LBracket }
+        "]"         { direct RBracket }
+        "<="        { direct OpLEq }
 	      "<"         { direct LAngle }
+        ">="        { direct OpGEq }
 	      ">"         { direct RAngle }
+        "=="        { direct OpEqEq }
         "="         { direct OpEq }
         ","         { direct Comma }
         "::"        { direct DoubleColon }
 	      ":"         { direct Colon }
         ";"         { direct Semicolon }
 	      "->" 	      { direct RArrow }
+        "||"        { direct OpPipePipe }
         "|"         { direct Pipe }
         "-"         { direct OPMinus }
         "."         { direct OPDot }
+        "#"         { direct OPHash }
+        "&&"        { direct OpAmpAmp }
+        "&"         { direct OPAmpersand }
         "fn"        { direct KWFn }
         "if"        { direct KWIf }
         "else"      { direct KWElse }
@@ -115,6 +124,13 @@ data Lexeme
     | Pipe
     | OPMinus
     | OPDot
+    | OPAmpersand
+    | OpAmpAmp
+    | OpPipePipe
+    | OpLEq
+    | OpGEq
+    | OpEqEq
+    | OPHash -- ^ @#@
     | KWLet -- ^ keyword @let@
     | KWIf -- ^ keyword @if@
     | KWElse -- ^ keyword @else@
@@ -142,11 +158,18 @@ instance Show Lexeme where
     OpEq -> "'='"
     Comma -> "','"
     OPDot -> "'.'"
+    OPHash -> "'#'"
+    OPAmpersand -> "'&'"
     DoubleColon -> "'::'"
     Colon -> "':'"
     Semicolon -> "';'"
     Pipe -> "'|'"
     OPMinus -> "'-'"
+    OpAmpAmp -> "&&"
+    OpPipePipe -> "||"
+    OpLEq -> "<="
+    OpGEq -> ">="
+    OpEqEq -> "=="
     LAngle -> "'<'"
     RAngle -> "'>'"
     RArrow -> "'->'"

@@ -19,15 +19,17 @@ import Ohua.Prelude
 
 import qualified Data.HashMap.Strict as HM
 import qualified Data.ByteString.Lazy as BS
-import Control.Lens (ix, use)
+import Control.Lens (at, ix, use, non)
 import Control.Monad.Writer (runWriter, tell)
 import Data.Functor.Foldable (cata, embed)
+import Control.Category ((>>>))
 
 import Ohua.Compat.Clike.Lexer
 import Ohua.Compat.Clike.Types
 import Ohua.Frontend.Lang
 import Ohua.Types
 import Ohua.Frontend.NS
+import Ohua.ALang.PPrint (quickRender)
 
 --import Unsafe
 import Prelude ((!!))
@@ -66,6 +68,8 @@ import Prelude ((!!))
     ')'     { RParen }
     '{'     { LBrace }
     '}'     { RBrace }
+    '['     { LBracket }
+    ']'     { RBracket }
     '::'    { DoubleColon }
     ':'     { Colon }
     ';'     { Semicolon }
@@ -75,6 +79,13 @@ import Prelude ((!!))
     '|'     { Pipe }
     '-'     { OPMinus }
     '.'     { OPDot }
+    '#'     { OPHash }
+    '&'     { OPAmpersand }
+    '=='    { OpEqEq }
+    '<='    { OpLEq }
+    '>='    { OpGEq }
+    '||'    { OpPipePipe }
+    '&&'    { OpAmpAmp }
 
 %%
 
@@ -155,6 +166,7 @@ SimpleExp :: { RawExpression }
                                    [] -> LitE UnitLit
                                    [x] -> x
                                    xs -> TupE xs }
+    | '&' SimpleExp { ohuaLangFun "&" `AppE` [ $2 ] }
     | SimpleNoTuple          { $1 }
 
 
@@ -166,8 +178,21 @@ CallCont
     : tuple(Exp)  { ( `AppE` $1 ) }
     |             { id }
 
+op
+    : '==' { ohuaLangFun "==" }
+    | '>=' { ohuaLangFun ">=" }
+    | '<=' { ohuaLangFun "<=" }
+    | '<'  { ohuaLangFun "<" }
+    | '>'  { ohuaLangFun ">" }
+    | '||' { ohuaLangFun "||" }
+    | '&&' { ohuaLangFun "&&" }
+
+OpCont
+    : op SimpleOrCall { \before -> AppE $1 [before, $2] }
+    |                { id }
+
 SimpleOrCall
-    : SimpleExp BindCont CallCont { ($3 . $2) $1 }
+    : SimpleExp BindCont CallCont OpCont { $4 $ ($3 . $2) $1 }
 
 IfCont
     : SimpleOrCall Block ThenCont { IfE $1 $2 $3 }
@@ -247,6 +272,7 @@ Decl :: { Decl }
     : use ReqDef ';'        { ImportDecl $2 }
     | TLFunSig FunDefCont   { $2 $1 }
     | pragma                { PragmaD $ either error id $ parsePragma $1 }
+    | '#' '[' SomeId ']'    { MacroCall $3 }
 
 Import
     : id ImportCont { $2 $1 }
@@ -279,21 +305,7 @@ type RawExpression = Expr
 
 type RawExpressionProducer = RawExpression -> RawExpression
 
-data Decl
-    = ImportDecl Import
-    | AlgoDecl Algo
-    | PragmaD Pragma
-data Import = Import
-    { isAlgo :: Bool
-    , nsRef :: NSRef
-    , bindings :: [Binding]
-    }
-data Algo = Algo
-    { algoName :: Binding
-    , algoTyAnn :: FunAnn RustTyExpr
-    , algoCode :: Expr
-    } deriving ( Show, Eq )
-
+ohuaLangFun = LitE . FunRefLit . flip FunRef Nothing . QualifiedBinding ["ohua", "lang"]
 
 bndsToNSRef :: (Container c, Element c ~ Binding) => c -> NSRef
 bndsToNSRef = makeThrow . toList
@@ -330,16 +342,33 @@ parseError token = do
 
 
 -- | Parse a stream of tokens into a namespace
-parseNS :: Input -> Namespace (Annotated (FunAnn RustTyExpr) Expr)
+parseNS :: Input -> (Namespace (Annotated (FunAnn RustTyExpr) Expr), HashMap Binding [Expr])
 parseNS = runPM parseNSRawM
 
-mkNS :: NSRef -> [Decl] -> Namespace (Annotated (FunAnn RustTyExpr) Expr)
-mkNS name defs = (emptyNamespace name :: Namespace ())
-     & algoImports .~ map importToTuple algoRequires <> map ((,[])) extraAlgoNamespaces
-     & sfImports .~ map importToTuple sfRequires <> map ((,[])) extraSfNamespaces
-     & decls .~ algos
-     & pragmas .~ pragmaList
+getAnnots :: [Decl] -> (HashMap Binding [Expr])
+getAnnots =
+    foldl' f ([], mempty)
+    >>> (\(a, b) -> if null a then b else error $ "Bare macro at top level " <> quickRender a)
   where
+    f (mAnn, anns) = \case
+        MacroCall a -> (a:mAnn, anns)
+        AlgoDecl Algo { algoName }
+            | not (null mAnn) -> ([], at algoName . non [] %~ (mAnn ++) $  anns)
+        other | not (null mAnn) ->
+            trace ("Warning: Ignoring macro calls " <> quickRender mAnn <> " on invalid declaration " <> quickRender other)
+                  ([], anns)
+        _ -> (mAnn, anns)
+
+mkNS :: NSRef -> [Decl] -> (Namespace (Annotated (FunAnn RustTyExpr) Expr), HashMap Binding [Expr])
+mkNS name defs =
+    (emptyNamespace name :: Namespace ())
+        & algoImports .~ map importToTuple algoRequires <> map ((,[])) extraAlgoNamespaces
+        & sfImports .~ map importToTuple sfRequires <> map ((,[])) extraSfNamespaces
+        & decls .~ algos
+        & pragmas .~ pragmaList
+        & (, annots)
+  where
+    annots = getAnnots defs
     (requires, algoList, pragmaList) = partitionDecls defs
     sfRequires = filter (not . isAlgo) requires
     algoRequires = filter isAlgo requires
@@ -353,12 +382,12 @@ mkNS name defs = (emptyNamespace name :: Namespace ())
         e -> pure $ embed e
     getRequire = flip HM.lookup $ HM.fromList [ (refer, ( nsRef import_, isAlgo import_ )) | import_ <- sfRequires <> algoRequires, refer <- bindings import_ ]
     (algoList', (extraAlgoNamespaces, extraSfNamespaces)) = runWriter $ traverse (\a@Algo{algoCode=c} -> (\c' -> a { algoCode = c' }) <$> fillInRefers c) algoList
-    algos = HM.fromList $ map (\Algo{algoTyAnn, algoName, algoCode} -> (algoName, Annotated algoTyAnn algoCode)) algoList' -- ignores algos which are defined twice
+    algos = HM.fromListWith (\a1 a2 -> trace ("Warning: double defined algo \n" <> quickRender a1 <> "\n and \n " <> quickRender a2 <> "\n the former will be ignored!") a2) $ map (\Algo{algoTyAnn, algoName, algoCode} -> (algoName, Annotated algoTyAnn algoCode)) algoList' -- ignores algos which are defined twice
 
 partitionDecls :: [Decl] -> ([Import], [Algo], [Pragma])
 partitionDecls = flip foldl' mempty . flip $ \case
     ImportDecl i -> _1 %~ (i:)
     AlgoDecl a -> _2 %~ (a:)
     PragmaD p -> _3 %~ (p:)
-
+    MacroCall _ -> id
 }
