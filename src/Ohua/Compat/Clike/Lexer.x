@@ -57,6 +57,7 @@ $sep = $white
         ">="        { direct OpGEq }
 	      ">"         { direct RAngle }
         "=="        { direct OpEqEq }
+        "!="        { direct OpBangEq }
         "="         { direct OpEq }
         ","         { direct Comma }
         "::"        { direct DoubleColon }
@@ -130,6 +131,7 @@ data Lexeme
     | OpLEq
     | OpGEq
     | OpEqEq
+    | OpBangEq
     | OPHash -- ^ @#@
     | KWLet -- ^ keyword @let@
     | KWIf -- ^ keyword @if@
@@ -170,6 +172,7 @@ instance Show Lexeme where
     OpLEq -> "<="
     OpGEq -> ">="
     OpEqEq -> "=="
+    OpBangEq -> "!="
     LAngle -> "'<'"
     RAngle -> "'>'"
     RArrow -> "'->'"

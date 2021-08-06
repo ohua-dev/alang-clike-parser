@@ -82,6 +82,7 @@ import Prelude ((!!))
     '#'     { OPHash }
     '&'     { OPAmpersand }
     '=='    { OpEqEq }
+    '!='    { OpBangEq }
     '<='    { OpLEq }
     '>='    { OpGEq }
     '||'    { OpPipePipe }
@@ -186,6 +187,7 @@ op
     | '>'  { ohuaLangFun ">" }
     | '||' { ohuaLangFun "||" }
     | '&&' { ohuaLangFun "&&" }
+    | '!=' { ohuaLangFun "!=" }
 
 OpCont
     : op SimpleOrCall { \before -> AppE $1 [before, $2] }

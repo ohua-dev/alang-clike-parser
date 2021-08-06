@@ -91,7 +91,7 @@ instance Pretty Expr where
             case f of
                 LitE (FunRefLit (FunRef (QualifiedBinding ["ohua", "lang"] fun) _))
                     | fun == "&" -> "&" <> (pretty $ P.head args)
-                    | fun `elem` ( [ "==", "<=", "<", ">", ">=", "||", "&&" ] :: Vector Binding ) ->
+                    | fun `elem` ( [ "==", "<=", "<", ">", ">=", "||", "&&" , "!="] :: Vector Binding ) ->
                       let [a1, a2] = args in
                           PP.parens $ pretty a1 <+> pretty fun <+> pretty a2
                 _ -> pretty f <> PP.tupled (map pretty args)
